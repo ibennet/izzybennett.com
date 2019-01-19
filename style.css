@@ -26,11 +26,7 @@
     height: 30%;
 	margin-top: -2%;
 }
-@media all and (max-width: 1100px) {
-    .banner {visibility: hidden;}
-    .nav{height: 5%;}
-    .info{width: 60%; margin-left: 35%;}
-}
+
 @font-face {
     font-family: 'soft_marshmallowregular';
     src: url('fonts/soft_marshmallow-webfont.woff2') format('woff2'),
