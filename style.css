@@ -31,7 +31,7 @@ body{
 }
 
 div.polaroid {
-  width: 25%;
+  width: 30%;
   background-color: #fff;
   margin: auto;
     margin-top: 2%;
@@ -81,4 +81,17 @@ div.footer
     position: fixed;
     width: 100%;
     padding-left: 1%;
+}
+
+@media (max-width: 1000px) {
+    div.polaroid{
+        width: 80%;
+    }
+    div.about{
+        margin-left: 10%;
+        width: 80%;
+    }
+    .topnav{
+        font-size: .75em;
+    }
 }
