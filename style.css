@@ -71,12 +71,11 @@ div.about{
     font-size: 1.15em;
 }
 
-div.footer
+.footer
 {
     font-size: 1em;
-    color: #db8e69;
-    height: 5%;
     bottom: 0;
+    left: 0;
     position: fixed;
     width: 100%;
     padding-left: 1%;
