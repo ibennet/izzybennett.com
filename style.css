@@ -31,7 +31,7 @@ body{
 }
 
 div.polaroid {
-  width: 30%;
+  width: 20%;
   background-color: #fff;
   margin: auto;
     margin-top: 2%;
@@ -64,11 +64,10 @@ div.intro{
 }
 
 div.about{
-    text-align: left;
+    text-align: center;
     color: #421601;
-    margin-top: 2%;
-    margin-left: 38%;
-    width: 25%;
+    margin: auto;
+    width: 40%;
     font-size: 1.15em;
 }
 
