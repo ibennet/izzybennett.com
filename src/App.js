@@ -81,7 +81,7 @@ class Recipes extends React.Component {
         <li className="list-group-item"><a href="chicken_lo_mein.pdf" target="_blank">Chicken Lo Mein</a></li>
           <li className="list-group-item"><a href="chicken_ramen.pdf" target="_blank">Chicken Ramen </a></li>
           <li className="list-group-item"><a href="pumpkin_bread.pdf" target="_blank">Pumpkin Bread</a></li>
-          <li className="list-group-item"><a href="chicken_lo_mein.pdf" target="_blank">Chocolate Chip Cookies</a></li>
+          <li className="list-group-item"><a href="chocochip_cookies.pdf" target="_blank">Chocolate Chip Cookies</a></li>
           <li className="list-group-item"><a href="vegan_gingersnaps.pdf" target="_blank">Gingersnaps</a></li>
           <li className="list-group-item"><a href="honey_fried_chicken.pdf" target="_blank">Honey Fried Chicken</a></li>
           <li className="list-group-item"><a href="chicken_lo_mein.pdf" target="_blank">Izzy Burrito</a></li>
