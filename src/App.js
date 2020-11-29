@@ -11,9 +11,6 @@ import $ from 'jquery';
 import ReactMarkdown from 'react-markdown';
 
 export default class App extends React.Component {
-  constructor(props) {
-    super(props);
-  }
 
   render() {
     return (
@@ -54,7 +51,7 @@ class Home extends React.Component {
   render() {
     return (
       <div className="Home">
-        <img src="me.jpeg" className="img-fluid img-thumbnail float-right" width="20%" />
+        <img src="me.jpeg" alt="Izzy" className="img-fluid img-thumbnail float-right" width="20%" />
         <h1 className="mt-5">Izzy Bennett</h1>
         <p className="lead">Welcome to my personal website!</p>
         <p>
@@ -126,13 +123,10 @@ class Recipe extends React.Component {
 }
 
 class Project extends React.Component {
-  constructor(props) {
-    super(props);
-  }
   render() {
     return (
       <div className="card">
-        <img src="" className="card-img-top" />
+        <img src="" alt="card" className="card-img-top" />
         <div className="card-body">
           <h5 className="card-title"><a href={this.props.url}>{this.props.title}</a></h5>
           <p className="card-text">{this.props.description}</p>
@@ -145,9 +139,6 @@ class Project extends React.Component {
 
 
 class Nav extends React.Component {
-  constructor(props) {
-    super(props);
-  }
   render() {
     return (
       <nav className="navbar navbar-expand-md navbar-light fixed-top">
@@ -175,9 +166,6 @@ class Nav extends React.Component {
 
 
 class Footer extends React.Component {
-  constructor(props) {
-    super(props);
-  }
   render() {
     return (
       <footer className="footer mt-auto py-3">
