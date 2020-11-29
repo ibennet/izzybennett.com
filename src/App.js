@@ -4,9 +4,11 @@ import {
   HashRouter as Router,
   Switch,
   Route,
-  Link
+  Link,
+  NavLink
 } from "react-router-dom";
 import $ from 'jquery';
+import ReactMarkdown from 'react-markdown';
 
 export default class App extends React.Component {
   constructor(props) {
@@ -21,14 +23,23 @@ export default class App extends React.Component {
 
           <main role="main" className="flex-shrink-0 container">
             <Switch>
-              <Route exact path="/projects">
-                <Projects />
-              </Route>
               <Route exact path="/recipes">
                 <Recipes />
               </Route>
+              <Route exact path="/projects">
+                <Projects />
+              </Route>
               <Route exact path="/">
                 <Home />
+              </Route>
+              <Route path="/apple_pie">
+                <Recipe file="apple_pie.md" />
+              </Route>
+              <Route path="/honey_fried_chicken">
+                <Recipe file="honey_fried_chicken.md" />
+              </Route>
+              <Route path="/pumpkin_bread">
+                <Recipe file="pumpkin_bread.md" />
               </Route>
             </Switch>
           </main>
@@ -77,19 +88,38 @@ class Recipes extends React.Component {
       <div className="Recipes">
         <h1 className="mt-5">Recipes</h1>
         <p className="lead">An archive</p>
-        <ul className="list-group list-group-flush">
-        <li className="list-group-item"><a href="chicken_lo_mein.pdf" target="_blank">Chicken Lo Mein</a></li>
-          <li className="list-group-item"><a href="chicken_ramen.pdf" target="_blank">Chicken Ramen </a></li>
-          <li className="list-group-item"><a href="pumpkin_bread.pdf" target="_blank">Pumpkin Bread</a></li>
-          <li className="list-group-item"><a href="chocochip_cookies.pdf" target="_blank">Chocolate Chip Cookies</a></li>
-          <li className="list-group-item"><a href="vegan_gingersnaps.pdf" target="_blank">Gingersnaps</a></li>
-          <li className="list-group-item"><a href="honey_fried_chicken.pdf" target="_blank">Honey Fried Chicken</a></li>
-          <li className="list-group-item"><a href="izzy_burrito.pdf" target="_blank">Izzy Burrito</a></li>
-          <li className="list-group-item"><a href="izzys_fajitas.pdf" target="_blank">Izzy's Fajitas</a></li>
-          <li className="list-group-item"><a href="potato_leek_soup.pdf" target="_blank">Potato Leek Soup</a></li>
-          <li className="list-group-item"><a href="thai_curry_soup.pdf" target="_blank">Thai Curry Soup</a></li>
-          
-        </ul>
+        <Router>
+          <div>
+            <nav>
+              <ul className="list-group list-group-flush">
+                <li className="list-group-item"><Link to="/apple_pie">Apple Pie</Link></li>
+                <li className="list-group-item"><Link to="/honey_fried_chicken">Honey Fried Chicken</Link></li>
+                <li className="list-group-item"><Link to="/pumpkin_bread">Pumpkin Bread</Link></li>
+              </ul>
+            </nav>
+          </div>
+        </Router>
+      </div>
+    )
+  }
+}
+
+class Recipe extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { recipe: null}
+  }
+
+  componentWillMount() {
+    fetch(this.props.file).then((response) => response.text()).then((text) => {
+      this.setState({ recipe: text })
+    })
+  }
+
+  render() {
+    return (
+      <div className="Recipe">
+        <ReactMarkdown source={this.state.recipe} />
       </div>
     )
   }
@@ -120,7 +150,7 @@ class Nav extends React.Component {
   }
   render() {
     return (
-      <nav className="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+      <nav className="navbar navbar-expand-md navbar-light fixed-top">
         <Link to="/" className="navbar-brand">Izzy Bennett</Link>
         <button className="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
           <span className="navbar-toggler-icon"></span>
@@ -128,13 +158,13 @@ class Nav extends React.Component {
         <div className="collapse navbar-collapse" id="navbarCollapse">
           <ul className="navbar-nav mr-auto">
             <li className="nav-item">
-              <Link to="/projects" className="nav-link" onClick={() => {$("#navbarCollapse").collapse("hide")}}>Projects</Link>
+              <NavLink to="/recipes" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Recipes</NavLink>
+            </li>
+            <li className="nav-item">
+              <NavLink to="/projects" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Projects</NavLink>
             </li>
             <li className="nav-item">
               <a className="nav-link" href="/resume.pdf">Resume</a>
-            </li>
-            <li className="nav-item">
-              <Link to="/recipes" className="nav-link" onClick={() => {$("#navbarCollapse").collapse("hide")}}>Recipes</Link>
             </li>
           </ul>
         </div>

@@ -25,7 +25,7 @@
 }
 
 .App-link {
-  color: #61dafb;
+  color: #0123c1;
 }
 
 @keyframes App-logo-spin {
@@ -62,7 +62,11 @@
   padding: 60px 15px 0;
 }
 
+recipe{
+  margin-top: auto;
+}
+
 footer{
   margin-top: auto;
-  background-color: #e6e8eb;
+  background-color: white;
 }
