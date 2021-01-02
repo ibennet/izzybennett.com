@@ -32,6 +32,9 @@ export default class App extends React.Component {
               <Route path="/apple_pie">
                 <Recipe file="apple_pie.md" />
               </Route>
+              <Route path="/blueberry_muffins">
+                <Recipe file="blueberry_muffins.md" />
+              </Route>
               <Route path="/honey_fried_chicken">
                 <Recipe file="honey_fried_chicken.md" />
               </Route>
