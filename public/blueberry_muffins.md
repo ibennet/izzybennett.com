@@ -4,8 +4,8 @@
 - 2 bowls
 - Muffin pan for 12 muffins
 - Grater
+
 ### Ingredients
-##### Pie Crust
 - 1 cup milk with 1 tbsp vinegar OR 1 cup yogurt
 - ½ cup and 2 tbsp sugar
 - 6 tbsp canola oil
@@ -16,7 +16,6 @@
 - ¼ tsp baking soda
 - ½ tsp salt
 - 1 pint blueberries
-
 
 ### Directions
 1. Combine **milk** and **vinegar** then set aside.

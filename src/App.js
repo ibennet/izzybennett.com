@@ -35,11 +35,23 @@ export default class App extends React.Component {
               <Route path="/blueberry_muffins">
                 <Recipe file="blueberry_muffins.md" />
               </Route>
+              <Route path="/gingersnaps">
+                <Recipe file="gingersnaps.md" />
+              </Route>
               <Route path="/honey_fried_chicken">
                 <Recipe file="honey_fried_chicken.md" />
               </Route>
+              <Route path="/potato_leek_soup">
+                <Recipe file="potato_leek_soup.md" />
+              </Route>
               <Route path="/pumpkin_bread">
                 <Recipe file="pumpkin_bread.md" />
+              </Route>
+              <Route path="/sweet_spicy_sauce">
+                <Recipe file="sweet_spicy_sauce.md" />
+              </Route>
+              <Route path="/sushi_rice">
+                <Recipe file="sushi_rice.md" />
               </Route>
             </Switch>
           </main>
@@ -94,8 +106,12 @@ class Recipes extends React.Component {
               <ul className="list-group list-group-flush">
                 <li className="list-group-item"><Link to="/apple_pie">Apple Pie</Link></li>
                 <li className="list-group-item"><Link to="/blueberry_muffins">Blueberry Muffins</Link></li>
+                <li className="list-group-item"><Link to="/gingersnaps">Gingersnaps</Link></li>
                 <li className="list-group-item"><Link to="/honey_fried_chicken">Honey Fried Chicken</Link></li>
+                <li className="list-group-item"><Link to="/potato_leek_soup">Potato Leek Soup</Link></li>
                 <li className="list-group-item"><Link to="/pumpkin_bread">Pumpkin Bread</Link></li>
+                <li className="list-group-item"><Link to="/sweet_spicy_sauce">Sweet and Spicy Sauce</Link></li>
+                <li className="list-group-item"><Link to="/sushi_rice">Sushi Rice</Link></li>
               </ul>
             </nav>
           </div>
