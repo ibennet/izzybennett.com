@@ -90,7 +90,7 @@ class Projects extends React.Component {
       <div className="Home">
         <h1 className="mt-5">Projects</h1>
         <p className="lead">Recent projects of mine</p>
-        <Project title="Groceries" image="groceries_icon.jpeg" url="" description="Android application that allows users to create and colloborate grocery lists with live updates."
+        <Project title="Groceries" image="groceries_icon.jpeg" url="https://github.com/ibennet/groceries-android" description="Android application that allows users to create and collaborate grocery lists with live updates. Currently private."
           tag="Created by Izzy Bennett and Tiernan O'Rourke" />
       </div>
     )
@@ -150,7 +150,7 @@ class Project extends React.Component {
   render() {
     return (
       <div className="card">
-        <img src="" alt="card" className="card-img-top" />
+        <img src="" className="card-img-top" />
         <div className="card-body">
           <h5 className="card-title"><a href={this.props.url}>{this.props.title}</a></h5>
           <p className="card-text">{this.props.description}</p>
