@@ -69,13 +69,12 @@ class Home extends React.Component {
   render() {
     return (
       <div className="Home">
-        <img src="me.jpeg" alt="Izzy" className="img-fluid img-thumbnail float-right" width="20%" />
+        <img src="me.jpg" alt="Izzy" className="img-fluid img-thumbnail float-right" width="20%" />
         <h1 className="mt-5">Izzy Bennett</h1>
         <p className="lead">Welcome to my personal website!</p>
         <p>
-          I am a recent graduate from George Mason University where I earned my BS in Computer Science.<br />
           This website is a personal project of mine created with React.js<br />
-          Here I have a list of my recent projects, my resume, and some recipes I've collected.<br />
+          I mostly use this website to store my recipes and share them with others.<br />
           I can be reached at <b>me@izzybennett.com</b>
         </p>
 
