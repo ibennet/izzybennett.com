@@ -106,7 +106,7 @@ class Recipes extends React.Component {
           <div>
             <nav>
               <ul className="list-group list-group-flush">
-              <li className="list-group-item"><Link to="/apple_pie">Apple Bread</Link></li>
+              <li className="list-group-item"><Link to="/apple_bread">Apple Bread</Link></li>
                 <li className="list-group-item"><Link to="/apple_pie">Apple Pie</Link></li>
                 <li className="list-group-item"><Link to="/blueberry_muffins">Blueberry Muffins</Link></li>
                 <li className="list-group-item"><Link to="/gingersnaps">Gingersnaps</Link></li>
