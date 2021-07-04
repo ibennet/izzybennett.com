@@ -44,6 +44,9 @@ export default class App extends React.Component {
               <Route path="/honey_fried_chicken">
                 <Recipe file="honey_fried_chicken.md" />
               </Route>
+              <Route path="/lemon_blueberry_coffee_cake">
+                <Recipe file="lemon_blueberry_coffee_cake.md" />
+              </Route>
               <Route path="/potato_leek_soup">
                 <Recipe file="potato_leek_soup.md" />
               </Route>
@@ -111,6 +114,7 @@ class Recipes extends React.Component {
                 <li className="list-group-item"><Link to="/blueberry_muffins">Blueberry Muffins</Link></li>
                 <li className="list-group-item"><Link to="/gingersnaps">Gingersnaps</Link></li>
                 <li className="list-group-item"><Link to="/honey_fried_chicken">Honey Fried Chicken</Link></li>
+                <li className="list-group-item"><Link to="/lemon_blueberry_coffee_cake">Lemon Blueberry Coffee Cake</Link></li>
                 <li className="list-group-item"><Link to="/potato_leek_soup">Potato Leek Soup</Link></li>
                 <li className="list-group-item"><Link to="/pumpkin_bread">Pumpkin Bread</Link></li>
                 <li className="list-group-item"><Link to="/sweet_spicy_sauce">Sweet and Spicy Sauce</Link></li>
