@@ -38,6 +38,9 @@ export default class App extends React.Component {
               <Route path="/blueberry_muffins">
                 <Recipe file="blueberry_muffins.md" />
               </Route>
+              <Route path="/chocochip_cookies">
+                <Recipe file="chocochip_cookies.md" />
+              </Route>
               <Route path="/gingersnaps">
                 <Recipe file="gingersnaps.md" />
               </Route>
@@ -55,6 +58,9 @@ export default class App extends React.Component {
               </Route>
               <Route path="/pumpkin_bread">
                 <Recipe file="pumpkin_bread.md" />
+              </Route>
+              <Route path="/raspberry_lemon_scones">
+                <Recipe file="raspberry_lemon_scones.md" />
               </Route>
               <Route path="/sweet_spicy_sauce">
                 <Recipe file="sweet_spicy_sauce.md" />
@@ -115,12 +121,14 @@ class Recipes extends React.Component {
               <li className="list-group-item"><Link to="/apple_bread">Apple Bread</Link></li>
                 <li className="list-group-item"><Link to="/apple_pie">Apple Pie</Link></li>
                 <li className="list-group-item"><Link to="/blueberry_muffins">Blueberry Muffins</Link></li>
+                <li className="list-group-item"><Link to="/chocochip_cookies">Chocolate Chip Cookies</Link></li>
                 <li className="list-group-item"><Link to="/gingersnaps">Gingersnaps</Link></li>
                 <li className="list-group-item"><Link to="/honey_fried_chicken">Honey Fried Chicken</Link></li>
                 <li className="list-group-item"><Link to="/lemon_blueberry_coffee_cake">Lemon Blueberry Coffee Cake</Link></li>
                 <li className="list-group-item"><Link to="/pizza_dough">Pizza Dough</Link></li>
                 <li className="list-group-item"><Link to="/potato_leek_soup">Potato Leek Soup</Link></li>
                 <li className="list-group-item"><Link to="/pumpkin_bread">Pumpkin Bread</Link></li>
+                <li className="list-group-item"><Link to="/raspberry_lemon_scones">Raspberry Lemon Scones</Link></li>
                 <li className="list-group-item"><Link to="/sweet_spicy_sauce">Sweet and Spicy Sauce</Link></li>
                 <li className="list-group-item"><Link to="/sushi_rice">Sushi Rice</Link></li>
               </ul>
