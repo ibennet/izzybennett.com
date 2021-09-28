@@ -66,11 +66,15 @@
   padding: 60px 15px 0;
 }
 
-recipe{
+recipe {
   margin-top: auto;
 }
 
 footer{
   margin-top: auto;
+  background-color: white;
+}
+
+.navbar {
   background-color: white;
 }
