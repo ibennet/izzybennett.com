@@ -12,7 +12,7 @@
 - ½ tsp allspice
 - ½ tsp cinnamon
 - ¼ tsp cloves
-- 1/3 cup water
+- ⅓ cup water
 
 ### Directions
 1.	Preheat oven to **350°F** and spray pan with **Pam** and dust with **flour**

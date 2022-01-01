@@ -3,6 +3,7 @@
 - Mixing bowl
 - Egg beater
 - Baking sheet x2
+
 ### Ingredients
 - Oil spray
 - ½ cup butter, softened
@@ -20,5 +21,5 @@
 2. Place softened **butter**, **brown sugar**, and **white sugar** in a bowl and mix together with egg beater until combined. Add in **vanilla extract** and **egg**.
 3. In a separate bowl mix together the **flour**, **baking soda**, and **salt**.
 4. Add the dry ingredients to the wet and mix together.
-6. Spray baking sheets with **canola spray** and place balls of dough on them. Flatten dough balls if flatter cookies are desired.
-7. Bake for **8-10 minutes**. Let cool.
+5. Spray baking sheets with **canola spray** and place balls of dough on them. Flatten dough balls if flatter cookies are desired.
+6. Bake for **8-10 minutes**. Let cool.
