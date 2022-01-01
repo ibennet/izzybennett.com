@@ -50,6 +50,15 @@ export default class App extends React.Component {
               <Route path="/lemon_blueberry_coffee_cake">
                 <Recipe file="lemon_blueberry_coffee_cake.md" />
               </Route>
+              <Route path="/oatmeal_cookies">
+                <Recipe file="oatmeal_cookies.md" />
+              </Route>
+              <Route path="/japchae">
+                <Recipe file="japchae.md" />
+              </Route>
+              <Route path="/pinto_beans">
+                <Recipe file="pinto_beans.md" />
+              </Route>
               <Route path="/pizza_dough">
                 <Recipe file="pizza_dough.md" />
               </Route>
@@ -128,6 +137,9 @@ class Recipes extends React.Component {
                 <li className="list-group-item"><Link to="/gingersnaps">Gingersnaps</Link></li>
                 <li className="list-group-item"><Link to="/honey_fried_chicken">Honey Fried Chicken</Link></li>
                 <li className="list-group-item"><Link to="/lemon_blueberry_coffee_cake">Lemon Blueberry Coffee Cake</Link></li>
+                <li className="list-group-item"><Link to="/japchae">Japchae</Link></li>
+                <li className="list-group-item"><Link to="/oatmeal_cookies">Oatmeal Cookies</Link></li>
+                <li className="list-group-item"><Link to="/pinto_beans">Pinto Beans</Link></li>
                 <li className="list-group-item"><Link to="/pizza_dough">Pizza Dough</Link></li>
                 <li className="list-group-item"><Link to="/potato_leek_soup">Potato Leek Soup</Link></li>
                 <li className="list-group-item"><Link to="/pumpkin_bread">Pumpkin Bread</Link></li>
