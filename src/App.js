@@ -226,7 +226,7 @@ class Footer extends React.Component {
       <footer className="footer mt-auto py-3">
         <div className="container">
           <center>
-            <span className="text-muted">&copy; Izzy Bennett 2021</span>
+            <span className="text-muted">&copy; Izzy Bennett 2022</span>
           </center>
         </div>
       </footer>
