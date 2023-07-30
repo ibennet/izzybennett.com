@@ -26,6 +26,9 @@ export default class App extends React.Component {
               <Route exact path="/projects">
                 <Projects />
               </Route>
+              <Route exact path="/drink_menu">
+                <Recipe file="drink_menu.md" />
+              </Route>
               <Route exact path="/">
                 <Home />
               </Route>
@@ -130,7 +133,7 @@ class Recipes extends React.Component {
           <div>
             <nav>
               <ul className="list-group list-group-flush">
-              <li className="list-group-item"><Link to="/apple_bread">Apple Bread</Link></li>
+                <li className="list-group-item"><Link to="/apple_bread">Apple Bread</Link></li>
                 <li className="list-group-item"><Link to="/apple_pie">Apple Pie</Link></li>
                 <li className="list-group-item"><Link to="/blueberry_muffins">Blueberry Muffins</Link></li>
                 <li className="list-group-item"><Link to="/chocochip_cookies">Chocolate Chip Cookies</Link></li>
@@ -159,7 +162,7 @@ class Recipes extends React.Component {
 class Recipe extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { recipe: null}
+    this.state = { recipe: null }
   }
 
   componentWillMount() {
@@ -210,6 +213,9 @@ class Nav extends React.Component {
               <NavLink to="/projects" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Projects</NavLink>
             </li>
             <li className="nav-item">
+              <NavLink to="/drink_menu" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Drink Menu</NavLink>
+            </li>
+            <li className="nav-item">
               <a className="nav-link" href="/resume.pdf">Resume</a>
             </li>
           </ul>
@@ -226,7 +232,7 @@ class Footer extends React.Component {
       <footer className="footer mt-auto py-3">
         <div className="container">
           <center>
-            <span className="text-muted">&copy; Izzy Bennett 2022</span>
+            <span className="text-muted">&copy; Izzy Bennett 2023</span>
           </center>
         </div>
       </footer>
