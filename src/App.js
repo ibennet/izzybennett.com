@@ -29,6 +29,9 @@ export default class App extends React.Component {
               <Route exact path="/drink_menu">
                 <Recipe file="drink_menu.md" />
               </Route>
+              <Route exact path="/izzys_cafe">
+                <Recipe file="izzys_cafe.md" />
+              </Route>
               <Route exact path="/">
                 <Home />
               </Route>
@@ -214,6 +217,9 @@ class Nav extends React.Component {
             </li>
             <li className="nav-item">
               <NavLink to="/drink_menu" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Drink Menu</NavLink>
+            </li>
+            <li className="nav-item">
+              <NavLink to="/izzys_cafe" className="nav-link" onClick={() => { $("#navbarCollapse").collapse("hide") }}>Izzy's Cafe</NavLink>
             </li>
             <li className="nav-item">
               <a className="nav-link" href="/resume.pdf">Resume</a>
