@@ -1,21 +1,21 @@
 # Izzy's Cafe
-
+&nbsp;
 ## Menu
-### Drinks
+#### Drinks
 - Latte
 - Matcha Latte
 - Americano
 - Pourover
 
-### Milks
+#### Milks
 - Whole
 - Oat
 
-### Additions
+#### Additions
 - Cardamom syrup
 - Cardamom cold foam
 - Ice
 
-### Food
+#### Food
 - Cardamom cookie
 - Ricotta toast
