@@ -1,37 +1,14 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# izzybennett.com
 
-## Available Scripts
+Personal website — resume, recipes, and projects — built with [Astro](https://astro.build) and Tailwind CSS.
 
-In the project directory, you can run:
+Recipes live as structured markdown in `src/content/recipes/`; adding a new one is just a new file, no route wiring needed. Deploys automatically to GitHub Pages via `.github/workflows/deploy.yml` on push to `master`.
 
-### `npm start`
+## Commands
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
-
-First install [nodejs](https://nodejs.org/en/download/)
-
-### `npm install`
-
-Install the required packages.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm start`
-
-View the website changes in browser.
-
-### `npm run deploy`
-
-Your build is now live.
+| Command           | Action                                      |
+| :----------------- | :------------------------------------------ |
+| `npm install`       | Install dependencies                        |
+| `npm run dev`       | Start local dev server at `localhost:4321`   |
+| `npm run build`     | Build production site to `./dist/`          |
+| `npm run preview`   | Preview the build locally before deploying   |

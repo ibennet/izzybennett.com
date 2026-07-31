@@ -1,0 +1,25 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import groceriesIcon from '../assets/groceries-icon.jpeg';
+
+const projects = [
+  {
+    title: 'Groceries',
+    image: groceriesIcon,
+    url: 'https://github.com/ibennet/groceries-android',
+    description:
+      'Android application that allows users to create and collaborate grocery lists with live updates. Currently private.',
+    byline: "Created by Izzy Bennett and Tiernan O'Rourke",
+  },
+];
+---
+
+<BaseLayout title="Projects">
+  <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Projects</h1>
+  <p class="mt-2 text-neutral-600 dark:text-neutral-400">Recent projects of mine</p>
+
+  <div class="mt-8 grid gap-6 sm:grid-cols-2">
+    {projects.map((project) => <ProjectCard {...project} />)}
+  </div>
+</BaseLayout>

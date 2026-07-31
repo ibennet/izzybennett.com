@@ -1,0 +1,32 @@
+---
+import { Image } from 'astro:assets';
+import type { CollectionEntry } from 'astro:content';
+import TagPill from './TagPill.astro';
+
+interface Props {
+  recipe: CollectionEntry<'recipes'>;
+}
+
+const { recipe } = Astro.props;
+const { title, category, tags, image } = recipe.data;
+---
+
+<a
+  href={`/recipes/${recipe.id}/`}
+  class="group block overflow-hidden rounded-xl border border-neutral-200 bg-white transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+>
+  {image && (
+    <div class="aspect-4/3 overflow-hidden">
+      <Image src={image} alt={title} class="h-full w-full object-cover" width={400} height={300} />
+    </div>
+  )}
+  <div class="p-4">
+    <h3 class="font-medium text-neutral-900 group-hover:text-accent-600 dark:text-neutral-100 dark:group-hover:text-accent-100">
+      {title}
+    </h3>
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      <TagPill tag={category} />
+      {tags.slice(0, 3).map((tag) => <TagPill tag={tag} />)}
+    </div>
+  </div>
+</a>

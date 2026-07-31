@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import RecipeCard from '../../components/RecipeCard.astro';
+import TagPill from '../../components/TagPill.astro';
+
+const recipes = (await getCollection('recipes', ({ data }) => !data.draft)).sort((a, b) =>
+  a.data.title.localeCompare(b.data.title)
+);
+
+const tags = [...new Set(recipes.flatMap((recipe) => recipe.data.tags))].sort();
+---
+
+<BaseLayout title="Recipes" description="An archive of Izzy Bennett's recipes.">
+  <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Recipes</h1>
+  <p class="mt-2 text-neutral-600 dark:text-neutral-400">An archive</p>
+
+  {tags.length > 0 && (
+    <div class="mt-4 flex flex-wrap gap-1.5">
+      {tags.map((tag) => <TagPill tag={tag} href={`/recipes/tags/${tag}/`} />)}
+    </div>
+  )}
+
+  <div class="mt-8 grid gap-4 sm:grid-cols-2">
+    {recipes.map((recipe) => <RecipeCard recipe={recipe} />)}
+  </div>
+</BaseLayout>
