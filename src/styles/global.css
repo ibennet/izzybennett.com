@@ -4,10 +4,10 @@
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
 
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fef3c7;
-  --color-accent-600: #d97706;
-  --color-accent-700: #b45309;
+  --color-accent-50: #fdf2f8;
+  --color-accent-100: #fce7f3;
+  --color-accent-600: #db2777;
+  --color-accent-700: #be185d;
 }
 
 body {

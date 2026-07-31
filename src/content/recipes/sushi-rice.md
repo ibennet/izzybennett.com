@@ -1,7 +1,7 @@
 ---
 title: "Sushi Rice"
 category: "side"
-tags: ["rice", "japanese"]
+keywords: ["rice", "japanese"]
 tools:
   - "Pot"
   - "Sauce pan"

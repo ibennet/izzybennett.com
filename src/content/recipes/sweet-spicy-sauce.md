@@ -1,7 +1,7 @@
 ---
 title: "Sweet and Spicy Sauce"
 category: "sauce"
-tags: ["sauce", "gochujang", "condiment"]
+keywords: ["sauce", "gochujang", "condiment"]
 tools:
   - "Sauce pan"
 ingredients:

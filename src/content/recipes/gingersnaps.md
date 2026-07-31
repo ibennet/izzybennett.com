@@ -1,7 +1,7 @@
 ---
 title: "Gingersnaps"
 category: "dessert"
-tags: ["cookies", "ginger", "baking"]
+keywords: ["cookies", "ginger", "baking"]
 tools:
   - "Mixing bowl"
   - "Egg beater"

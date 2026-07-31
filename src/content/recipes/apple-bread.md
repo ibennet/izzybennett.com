@@ -1,7 +1,7 @@
 ---
 title: "Apple Bread"
 category: "dessert"
-tags: ["bread", "apple", "baking"]
+keywords: ["bread", "apple", "baking"]
 tools:
   - "1 large mixing bowl"
   - "2 small mixing bowls"

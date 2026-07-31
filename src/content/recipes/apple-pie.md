@@ -1,7 +1,7 @@
 ---
 title: "Apple Pie"
 category: "dessert"
-tags: ["pie", "apple", "baking"]
+keywords: ["pie", "apple", "baking"]
 tools:
   - "2 large mixing bowls"
   - "Plastic wrap"

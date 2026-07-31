@@ -1,7 +1,7 @@
 ---
 title: "Honey Fried Chicken"
 category: "main"
-tags: ["chicken", "fried", "asian"]
+keywords: ["chicken", "fried", "asian"]
 tools:
   - "Frying pan"
   - "Sauce pan"

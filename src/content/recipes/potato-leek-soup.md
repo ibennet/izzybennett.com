@@ -1,7 +1,7 @@
 ---
 title: "Potato Leek Soup"
 category: "main"
-tags: ["soup", "potato", "leek"]
+keywords: ["soup", "potato", "leek"]
 tools:
   - "Pot"
   - "Immersion blender"

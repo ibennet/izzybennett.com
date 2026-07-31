@@ -1,7 +1,7 @@
 ---
 title: "Shredded Chicken"
 category: "main"
-tags: ["chicken", "instant-pot", "meal-prep"]
+keywords: ["chicken", "instant-pot", "meal-prep"]
 tools:
   - "Meat tenderizer"
   - "Instant Pot"

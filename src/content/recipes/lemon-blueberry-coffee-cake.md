@@ -1,7 +1,7 @@
 ---
 title: "Lemon Blueberry Coffee Cake"
 category: "dessert"
-tags: ["cake", "lemon", "blueberry", "baking"]
+keywords: ["cake", "lemon", "blueberry", "baking"]
 tools:
   - "1 large mixing bowl"
   - "1 medium mixing bowl"

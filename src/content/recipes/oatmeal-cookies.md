@@ -1,7 +1,7 @@
 ---
 title: "Oatmeal Cookies"
 category: "dessert"
-tags: ["cookies", "oatmeal", "baking"]
+keywords: ["cookies", "oatmeal", "baking"]
 tools:
   - "Mixing bowl"
   - "Egg beater"

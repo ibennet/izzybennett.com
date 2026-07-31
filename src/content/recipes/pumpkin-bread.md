@@ -1,7 +1,7 @@
 ---
 title: "Pumpkin Bread"
 category: "dessert"
-tags: ["bread", "pumpkin", "baking"]
+keywords: ["bread", "pumpkin", "baking"]
 ingredients:
   - items:
       - "1 ¾ cup flour"

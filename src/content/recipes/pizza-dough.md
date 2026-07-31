@@ -1,7 +1,7 @@
 ---
 title: "Pizza Dough"
 category: "other"
-tags: ["bread", "dough", "italian"]
+keywords: ["bread", "dough", "italian"]
 tools:
   - "Large mixing bowl"
   - "Small bowl"

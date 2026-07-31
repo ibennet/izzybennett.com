@@ -1,7 +1,7 @@
 ---
 title: "Chocolate Chip Cookies"
 category: "dessert"
-tags: ["cookies", "chocolate", "baking"]
+keywords: ["cookies", "chocolate", "baking"]
 tools:
   - "Mixing bowl"
   - "Egg beater"

@@ -1,7 +1,7 @@
 ---
 title: "Raspberry Lemon Scones"
-category: "breakfast"
-tags: ["scones", "raspberry", "lemon", "baking"]
+category: "dessert"
+keywords: ["scones", "raspberry", "lemon", "baking"]
 tools:
   - "1 large mixing bowl"
   - "1 bowl"

@@ -1,7 +1,7 @@
 ---
 title: "Japchae"
 category: "main"
-tags: ["korean", "noodles", "chicken"]
+keywords: ["korean", "noodles", "chicken"]
 tools:
   - "Meat tenderizer"
   - "Large pan"

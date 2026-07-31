@@ -1,7 +1,7 @@
 ---
 title: "Pinto Beans"
 category: "side"
-tags: ["instant-pot", "beans", "mexican"]
+keywords: ["instant-pot", "beans", "mexican"]
 tools:
   - "Instant Pot"
   - "Strainer"

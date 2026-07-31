@@ -1,7 +1,7 @@
 ---
 title: "Blueberry Muffins"
-category: "breakfast"
-tags: ["muffins", "blueberry", "baking"]
+category: "dessert"
+keywords: ["muffins", "blueberry", "baking"]
 tools:
   - "1 large mixing bowl"
   - "2 bowls"
