@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { Image } from 'astro:assets';
+import me from '../assets/me.jpeg';
+---
+
+<BaseLayout title="Home">
+  <div class="flex flex-col-reverse items-start gap-8 sm:flex-row sm:items-center">
+    <div>
+      <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Izzy Bennett</h1>
+      <p class="mt-2 text-lg text-neutral-600 dark:text-neutral-400">Welcome to my personal website!</p>
+      <p class="mt-4 text-neutral-700 dark:text-neutral-300">
+        This website is a personal project of mine.<br />
+        I mostly use this website to store my recipes and share them with others.<br />
+        I can be reached at <strong class="font-medium">me@izzybennett.com</strong>
+      </p>
+    </div>
+    <Image
+      src={me}
+      alt="Izzy"
+      width={160}
+      height={160}
+      class="h-40 w-40 shrink-0 rounded-full border border-neutral-200 object-cover dark:border-neutral-800"
+    />
+  </div>
+</BaseLayout>

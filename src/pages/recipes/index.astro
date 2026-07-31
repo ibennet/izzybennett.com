@@ -1,0 +1,92 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import RecipeCard from '../../components/RecipeCard.astro';
+import { categoryValues } from '../../content.config';
+
+const recipes = (await getCollection('recipes', ({ data }) => !data.draft)).sort((a, b) =>
+  a.data.title.localeCompare(b.data.title)
+);
+
+// Only surface categories that actually have recipes; order follows the schema's canonical enum.
+const categories = categoryValues.filter((category) =>
+  recipes.some((recipe) => recipe.data.category === category)
+);
+const filters = ['', ...categories];
+---
+
+<BaseLayout title="Recipes" description="An archive of Izzy Bennett's recipes.">
+  <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Recipes</h1>
+  <p class="mt-2 text-neutral-600 dark:text-neutral-400">An archive</p>
+
+  <div class="mt-6">
+    <label for="recipe-search" class="sr-only">Search recipes</label>
+    <input
+      type="search"
+      id="recipe-search"
+      placeholder="Search recipes, ingredients, steps…"
+      autocomplete="off"
+      class="w-full rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:placeholder:text-neutral-500"
+    />
+  </div>
+
+  <div id="recipe-filters" class="mt-4 flex flex-wrap gap-2">
+    {filters.map((filter) => (
+      <button
+        type="button"
+        data-filter={filter}
+        class="rounded-full border border-neutral-300 px-3 py-1 text-sm capitalize text-neutral-600 transition-colors hover:border-accent-600 hover:text-accent-600 aria-pressed:border-accent-600 aria-pressed:bg-accent-600 aria-pressed:text-white dark:border-neutral-700 dark:text-neutral-400 dark:hover:border-accent-100 dark:hover:text-accent-100 dark:aria-pressed:border-accent-600 dark:aria-pressed:bg-accent-600 dark:aria-pressed:text-white"
+        aria-pressed={filter === '' ? 'true' : 'false'}
+      >
+        {filter || 'All'}
+      </button>
+    ))}
+  </div>
+
+  <div id="recipe-grid" class="mt-6 flex flex-col border-t border-neutral-200 dark:border-neutral-800">
+    {recipes.map((recipe) => <RecipeCard recipe={recipe} />)}
+  </div>
+
+  <p id="recipe-no-results" hidden class="mt-6 text-neutral-500 dark:text-neutral-500">
+    No recipes match your search.
+  </p>
+</BaseLayout>
+
+<script>
+  const input = document.getElementById('recipe-search') as HTMLInputElement | null;
+  const filterButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('#recipe-filters button')
+  );
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-recipe-card]'));
+  const noResults = document.getElementById('recipe-no-results');
+
+  let activeCategory = '';
+
+  function applyFilters() {
+    const terms = (input?.value ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let visible = 0;
+
+    for (const card of cards) {
+      const matchesCategory = !activeCategory || card.dataset.category === activeCategory;
+      const haystack = card.dataset.search ?? '';
+      const matchesSearch = terms.every((term) => haystack.includes(term));
+      const match = matchesCategory && matchesSearch;
+      card.style.display = match ? '' : 'none';
+      if (match) visible++;
+    }
+
+    if (noResults) noResults.hidden = visible !== 0;
+  }
+
+  input?.addEventListener('input', applyFilters);
+
+  for (const button of filterButtons) {
+    button.addEventListener('click', () => {
+      activeCategory = button.dataset.filter ?? '';
+      for (const other of filterButtons) {
+        other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+      }
+      applyFilters();
+    });
+  }
+</script>

@@ -1,0 +1,43 @@
+---
+import { Image } from 'astro:assets';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  recipe: CollectionEntry<'recipes'>;
+}
+
+const { recipe } = Astro.props;
+const { title, category, keywords, tools, ingredients, steps, image } = recipe.data;
+
+// Everything a keyword search should match against, folded into one lowercase string.
+const searchText = [
+  title,
+  category,
+  ...keywords,
+  ...tools,
+  ...ingredients.flatMap((group) => [group.group ?? '', ...group.items]),
+  ...steps,
+]
+  .join(' ')
+  .toLowerCase();
+---
+
+<a
+  href={`/recipes/${recipe.id}/`}
+  data-recipe-card
+  data-category={category}
+  data-search={searchText}
+  class="group flex items-center gap-4 border-b border-neutral-200 py-3 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+>
+  {image && (
+    <div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+      <Image src={image} alt={title} class="h-full w-full object-cover" width={112} height={112} />
+    </div>
+  )}
+  <div class="min-w-0 flex-1">
+    <h3 class="truncate font-medium text-neutral-900 group-hover:text-accent-600 dark:text-neutral-100 dark:group-hover:text-accent-100">
+      {title}
+    </h3>
+  </div>
+  <p class="shrink-0 text-sm capitalize text-neutral-500 dark:text-neutral-500">{category}</p>
+</a>
