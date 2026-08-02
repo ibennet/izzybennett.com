@@ -25,6 +25,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Base URL of the recipe API Worker (the /upload OAuth backend). Set this once in
+          # repo Settings → Secrets and variables → Actions → Variables as PUBLIC_RECIPE_API,
+          # e.g. https://izzy-recipe-api.<subdomain>.workers.dev
+          PUBLIC_RECIPE_API: ${{ vars.PUBLIC_RECIPE_API }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
