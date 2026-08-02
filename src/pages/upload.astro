@@ -5,6 +5,18 @@
 // the normal GitHub Pages deploy. No backend involved.
 import '../styles/global.css';
 import { categoryValues } from '../content.config';
+
+// Shared class strings, hoisted so a styling tweak happens in one place instead of ~14.
+const labelCls = 'block text-sm font-medium text-neutral-700 dark:text-neutral-300';
+const fieldInput =
+  'mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+const rowInput =
+  'min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+const sectionHeading = 'text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500';
+const addBtn =
+  'rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900';
+const removeBtn =
+  'shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700';
 ---
 
 <!doctype html>
@@ -29,16 +41,14 @@ import { categoryValues } from '../content.config';
         <!-- Basics -->
         <section class="space-y-4">
           <div>
-            <label for="title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Title <span class="text-accent-600">*</span></label>
-            <input id="title" name="title" type="text" required autocomplete="off" enterkeyhint="next"
-              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            <label for="title" class={labelCls}>Title <span class="text-accent-600">*</span></label>
+            <input id="title" name="title" type="text" required autocomplete="off" enterkeyhint="next" class={fieldInput} />
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="category" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Category <span class="text-accent-600">*</span></label>
-              <select id="category" name="category"
-                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 capitalize text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+              <label for="category" class={labelCls}>Category <span class="text-accent-600">*</span></label>
+              <select id="category" name="category" class={`${fieldInput} capitalize`}>
                 {categoryValues.map((c) => <option value={c}>{c}</option>)}
               </select>
             </div>
@@ -52,32 +62,27 @@ import { categoryValues } from '../content.config';
           </div>
 
           <div>
-            <label for="description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Description <span class="text-neutral-400">(optional)</span></label>
-            <input id="description" name="description" type="text" autocomplete="off"
-              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            <label for="description" class={labelCls}>Description <span class="text-neutral-400">(optional)</span></label>
+            <input id="description" name="description" type="text" autocomplete="off" class={fieldInput} />
           </div>
 
           <div>
-            <label for="keywords" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Keywords <span class="text-neutral-400">(comma-separated)</span></label>
-            <input id="keywords" name="keywords" type="text" autocomplete="off" placeholder="e.g. pie, apple, baking"
-              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            <label for="keywords" class={labelCls}>Keywords <span class="text-neutral-400">(comma-separated)</span></label>
+            <input id="keywords" name="keywords" type="text" autocomplete="off" placeholder="e.g. pie, apple, baking" class={fieldInput} />
           </div>
 
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label for="prepTime" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Prep <span class="text-neutral-400">min</span></label>
-              <input id="prepTime" name="prepTime" type="number" min="0" inputmode="numeric"
-                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+              <label for="prepTime" class={labelCls}>Prep <span class="text-neutral-400">min</span></label>
+              <input id="prepTime" name="prepTime" type="number" min="0" step="1" inputmode="numeric" class={fieldInput} />
             </div>
             <div>
-              <label for="cookTime" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Cook <span class="text-neutral-400">min</span></label>
-              <input id="cookTime" name="cookTime" type="number" min="0" inputmode="numeric"
-                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+              <label for="cookTime" class={labelCls}>Cook <span class="text-neutral-400">min</span></label>
+              <input id="cookTime" name="cookTime" type="number" min="0" step="1" inputmode="numeric" class={fieldInput} />
             </div>
             <div>
-              <label for="servings" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Servings</label>
-              <input id="servings" name="servings" type="number" min="1" inputmode="numeric"
-                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+              <label for="servings" class={labelCls}>Servings</label>
+              <input id="servings" name="servings" type="number" min="1" step="1" inputmode="numeric" class={fieldInput} />
             </div>
           </div>
         </section>
@@ -85,8 +90,8 @@ import { categoryValues } from '../content.config';
         <!-- Tools -->
         <section>
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Tools <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
-            <button type="button" data-action="add-tool" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+            <h2 class={sectionHeading}>Tools <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
+            <button type="button" data-action="add-tool" class={addBtn}>+ Add</button>
           </div>
           <div id="tools-list" class="mt-2 space-y-2"></div>
         </section>
@@ -94,8 +99,8 @@ import { categoryValues } from '../content.config';
         <!-- Ingredients -->
         <section>
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Ingredients <span class="text-accent-600">*</span></h2>
-            <button type="button" data-action="add-group" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Group</button>
+            <h2 class={sectionHeading}>Ingredients <span class="text-accent-600">*</span></h2>
+            <button type="button" data-action="add-group" class={addBtn}>+ Group</button>
           </div>
           <p class="mt-1 text-xs text-neutral-400">Group names are optional — leave blank for a plain list.</p>
           <div id="ingredients-list" class="mt-2 space-y-4"></div>
@@ -104,8 +109,8 @@ import { categoryValues } from '../content.config';
         <!-- Steps -->
         <section>
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Steps <span class="text-accent-600">*</span></h2>
-            <button type="button" data-action="add-step" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+            <h2 class={sectionHeading}>Steps <span class="text-accent-600">*</span></h2>
+            <button type="button" data-action="add-step" class={addBtn}>+ Add</button>
           </div>
           <div id="steps-list" class="mt-2 space-y-2"></div>
         </section>
@@ -113,8 +118,8 @@ import { categoryValues } from '../content.config';
         <!-- Notes -->
         <section>
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Notes <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
-            <button type="button" data-action="add-note" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+            <h2 class={sectionHeading}>Notes <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
+            <button type="button" data-action="add-note" class={addBtn}>+ Add</button>
           </div>
           <div id="notes-list" class="mt-2 space-y-2"></div>
         </section>
@@ -138,11 +143,11 @@ import { categoryValues } from '../content.config';
         </details>
 
         <!-- Preview -->
-        <details class="rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <details id="preview-details" class="rounded-lg border border-neutral-200 dark:border-neutral-800">
           <summary class="cursor-pointer px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Preview markdown</summary>
           <div class="border-t border-neutral-200 p-3 dark:border-neutral-800">
             <pre id="preview" class="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-3 text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">Fill in the form to see the generated file.</pre>
-            <button type="button" id="copy-md" class="mt-2 rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">Copy markdown</button>
+            <button type="button" id="copy-md" class={`mt-2 ${addBtn}`}>Copy markdown</button>
           </div>
         </details>
 
@@ -157,48 +162,30 @@ import { categoryValues } from '../content.config';
       </form>
     </main>
 
-    <!-- Row templates -->
-    <template id="tpl-tool">
-      <div data-unit="tool" class="flex gap-2">
-        <input type="text" data-field="tool" placeholder="e.g. Rolling pin" autocomplete="off"
-          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
-        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+    <!-- Row templates. tpl-row is the generic single-line input row (tools / notes /
+         ingredient items) — the JS stamps data-field + placeholder per use. -->
+    <template id="tpl-row">
+      <div data-unit="row" class="flex gap-2">
+        <input type="text" autocomplete="off" class={rowInput} />
+        <button type="button" data-action="remove" aria-label="Remove" class={removeBtn}>✕</button>
       </div>
     </template>
 
     <template id="tpl-step">
       <div data-unit="step" class="flex gap-2">
-        <textarea data-field="step" rows="2" placeholder="Describe the step…"
-          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"></textarea>
-        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 self-start rounded-lg border border-neutral-300 px-3 py-2 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
-      </div>
-    </template>
-
-    <template id="tpl-note">
-      <div data-unit="note" class="flex gap-2">
-        <input type="text" data-field="note" placeholder="A tip or variation…" autocomplete="off"
-          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
-        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
-      </div>
-    </template>
-
-    <template id="tpl-item">
-      <div data-unit="item" class="flex gap-2">
-        <input type="text" data-field="item" placeholder="e.g. 2 ¼ cup flour" autocomplete="off"
-          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
-        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+        <textarea data-field="step" rows="2" placeholder="Describe the step…" class={rowInput}></textarea>
+        <button type="button" data-action="remove" aria-label="Remove" class={`${removeBtn} self-start py-2`}>✕</button>
       </div>
     </template>
 
     <template id="tpl-group">
       <div data-unit="group" class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
         <div class="flex gap-2">
-          <input type="text" data-field="group" placeholder="Group name (optional), e.g. Pie Crust" autocomplete="off"
-            class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
-          <button type="button" data-action="remove" aria-label="Remove group" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+          <input type="text" data-field="group" placeholder="Group name (optional), e.g. Pie Crust" autocomplete="off" class={`${rowInput} text-sm font-medium`} />
+          <button type="button" data-action="remove" aria-label="Remove group" class={removeBtn}>✕</button>
         </div>
         <div class="items-list mt-2 space-y-2"></div>
-        <button type="button" data-action="add-item" class="mt-2 rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Ingredient</button>
+        <button type="button" data-action="add-item" class={`mt-2 ${addBtn}`}>+ Ingredient</button>
       </div>
     </template>
 
@@ -216,6 +203,7 @@ import { categoryValues } from '../content.config';
       const form = $<HTMLFormElement>('#recipe-form')!;
       const statusEl = $('#status')!;
       const previewEl = $<HTMLPreElement>('#preview')!;
+      const previewDetails = $<HTMLDetailsElement>('#preview-details')!;
       const tokenInput = $<HTMLInputElement>('#token')!;
       const tokenState = $('#token-state')!;
       const publishBtn = $<HTMLButtonElement>('#publish')!;
@@ -227,11 +215,20 @@ import { categoryValues } from '../content.config';
         list.appendChild(node);
         return node;
       }
+      // Generic single-line row (tools / notes / ingredient items).
+      function makeRow(field: string, placeholder: string): HTMLElement {
+        const row = tpl('tpl-row').content.firstElementChild!.cloneNode(true) as HTMLElement;
+        const input = row.querySelector('input')!;
+        input.dataset.field = field;
+        input.placeholder = placeholder;
+        return row;
+      }
+      function addItem(itemsList: Element): void {
+        itemsList.appendChild(makeRow('item', 'e.g. 2 ¼ cup flour'));
+      }
       function addGroup(): HTMLElement {
         const group = addRow('#ingredients-list', 'tpl-group');
-        const items = group.querySelector('.items-list')!;
-        const item = tpl('tpl-item').content.firstElementChild!.cloneNode(true) as HTMLElement;
-        items.appendChild(item);
+        addItem(group.querySelector('.items-list')!);
         return group;
       }
 
@@ -240,16 +237,11 @@ import { categoryValues } from '../content.config';
         const btn = (e.target as HTMLElement).closest('button[data-action]') as HTMLButtonElement | null;
         if (!btn) return;
         switch (btn.dataset.action) {
-          case 'add-tool': addRow('#tools-list', 'tpl-tool'); break;
+          case 'add-tool': $('#tools-list')!.appendChild(makeRow('tool', 'e.g. Rolling pin')); break;
+          case 'add-note': $('#notes-list')!.appendChild(makeRow('note', 'A tip or variation…')); break;
           case 'add-step': addRow('#steps-list', 'tpl-step'); break;
-          case 'add-note': addRow('#notes-list', 'tpl-note'); break;
           case 'add-group': addGroup(); break;
-          case 'add-item': {
-            const items = btn.closest('[data-unit="group"]')!.querySelector('.items-list')!;
-            const item = tpl('tpl-item').content.firstElementChild!.cloneNode(true) as HTMLElement;
-            items.appendChild(item);
-            break;
-          }
+          case 'add-item': addItem(btn.closest('[data-unit="group"]')!.querySelector('.items-list')!); break;
           case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
         }
       });
@@ -276,8 +268,10 @@ import { categoryValues } from '../content.config';
       });
 
       // ---- Status ---------------------------------------------------------
+      // textContent (not innerHTML) — messages can include GitHub-returned error text,
+      // which must never be parsed as markup. Callers that need a link append DOM nodes.
       function setStatus(msg: string, kind: 'ok' | 'err' | 'info' | '' = '') {
-        statusEl.innerHTML = msg;
+        statusEl.textContent = msg;
         statusEl.className =
           'mt-2 text-sm ' +
           (kind === 'ok' ? 'text-green-600 dark:text-green-500'
@@ -332,7 +326,18 @@ import { categoryValues } from '../content.config';
       }
 
       // ---- YAML frontmatter serializer ------------------------------------
-      const q = (s: string) => '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+      // Escape order matters: backslashes first, then the chars whose escapes
+      // introduce backslashes. Newlines/tabs must be escaped too — a raw newline
+      // inside a double-quoted YAML scalar is a "missing closing quote" parse error.
+      const q = (s: string) =>
+        '"' +
+        s
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t') +
+        '"';
 
       function toMarkdown(r: Recipe): string {
         const L: string[] = ['---'];
@@ -378,16 +383,33 @@ import { categoryValues } from '../content.config';
         if (!r.category) return 'Pick a category.';
         if (r.ingredients.length === 0) return 'Add at least one ingredient.';
         if (r.steps.length === 0) return 'Add at least one step.';
+        // Mirror the schema's numeric constraints (int + nonnegative/positive) so a
+        // stray decimal or out-of-range value is caught here, not by a failed deploy build.
+        const numeric: [string, number | undefined, number][] = [
+          ['Prep time', r.prepTime, 0],
+          ['Cook time', r.cookTime, 0],
+          ['Servings', r.servings, 1],
+        ];
+        for (const [name, v, min] of numeric) {
+          if (v !== undefined && (!Number.isInteger(v) || v < min)) {
+            return `${name} must be a whole number (${min} or more).`;
+          }
+        }
         return null;
       }
 
       function refreshPreview() {
+        // Skip work while the preview panel is collapsed — it's refreshed on open (toggle).
+        if (!previewDetails.open) return;
         try {
           previewEl.textContent = toMarkdown(readForm());
         } catch {
           /* ignore mid-edit errors */
         }
       }
+      previewDetails.addEventListener('toggle', () => {
+        if (previewDetails.open) refreshPreview();
+      });
 
       // ---- GitHub API -----------------------------------------------------
       function b64(str: string): string {
@@ -460,7 +482,7 @@ import { categoryValues } from '../content.config';
 
           setStatus('Publishing…', 'info');
           const body: Record<string, unknown> = {
-            message: `Add recipe: ${recipe.title}`,
+            message: `${sha ? 'Update' : 'Add'} recipe: ${recipe.title}`,
             content: b64(md),
             branch: BRANCH,
           };
@@ -473,10 +495,12 @@ import { categoryValues } from '../content.config';
           if (!res.ok) throw new Error(await ghError(res));
 
           const url = `https://izzybennett.com/recipes/${slug}/`;
-          setStatus(
-            `Published! 🎉 It'll be live in a minute or two at <a class="underline" href="${url}">${url}</a>`,
-            'ok'
-          );
+          setStatus("Published! 🎉 It'll be live in a minute or two at ", 'ok');
+          const link = document.createElement('a');
+          link.href = url;
+          link.textContent = url;
+          link.className = 'underline';
+          statusEl.appendChild(link);
           form.reset();
           resetDynamic();
         } catch (err) {
