@@ -1,0 +1,503 @@
+---
+// Standalone, unlisted recipe uploader. Not linked from Nav and deliberately does NOT
+// use BaseLayout so it stays out of the site chrome. It builds a schema-valid markdown
+// file client-side and commits it to the repo via the GitHub Contents API, which triggers
+// the normal GitHub Pages deploy. No backend involved.
+import '../styles/global.css';
+import { categoryValues } from '../content.config';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#db2777" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>Add a recipe · Izzy Bennett</title>
+  </head>
+  <body class="min-h-screen bg-white text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
+    <main class="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+      <header class="flex items-baseline justify-between gap-3">
+        <h1 class="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Add a recipe</h1>
+        <a href="/recipes/" class="text-sm text-accent-600 hover:underline dark:text-accent-100">← Recipes</a>
+      </header>
+      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-500">Fill it in, hit publish, and it goes live in a minute or two.</p>
+
+      <form id="recipe-form" class="mt-6 space-y-8" novalidate>
+        <!-- Basics -->
+        <section class="space-y-4">
+          <div>
+            <label for="title" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Title <span class="text-accent-600">*</span></label>
+            <input id="title" name="title" type="text" required autocomplete="off" enterkeyhint="next"
+              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="category" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Category <span class="text-accent-600">*</span></label>
+              <select id="category" name="category"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 capitalize text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                {categoryValues.map((c) => <option value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div class="flex items-end pb-1">
+              <label class="inline-flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <input id="draft" name="draft" type="checkbox"
+                  class="h-4 w-4 rounded border-neutral-300 text-accent-600 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900" />
+                Draft (hidden)
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label for="description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Description <span class="text-neutral-400">(optional)</span></label>
+            <input id="description" name="description" type="text" autocomplete="off"
+              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+          </div>
+
+          <div>
+            <label for="keywords" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Keywords <span class="text-neutral-400">(comma-separated)</span></label>
+            <input id="keywords" name="keywords" type="text" autocomplete="off" placeholder="e.g. pie, apple, baking"
+              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label for="prepTime" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Prep <span class="text-neutral-400">min</span></label>
+              <input id="prepTime" name="prepTime" type="number" min="0" inputmode="numeric"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            </div>
+            <div>
+              <label for="cookTime" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Cook <span class="text-neutral-400">min</span></label>
+              <input id="cookTime" name="cookTime" type="number" min="0" inputmode="numeric"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            </div>
+            <div>
+              <label for="servings" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Servings</label>
+              <input id="servings" name="servings" type="number" min="1" inputmode="numeric"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Tools -->
+        <section>
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Tools <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
+            <button type="button" data-action="add-tool" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+          </div>
+          <div id="tools-list" class="mt-2 space-y-2"></div>
+        </section>
+
+        <!-- Ingredients -->
+        <section>
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Ingredients <span class="text-accent-600">*</span></h2>
+            <button type="button" data-action="add-group" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Group</button>
+          </div>
+          <p class="mt-1 text-xs text-neutral-400">Group names are optional — leave blank for a plain list.</p>
+          <div id="ingredients-list" class="mt-2 space-y-4"></div>
+        </section>
+
+        <!-- Steps -->
+        <section>
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Steps <span class="text-accent-600">*</span></h2>
+            <button type="button" data-action="add-step" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+          </div>
+          <div id="steps-list" class="mt-2 space-y-2"></div>
+        </section>
+
+        <!-- Notes -->
+        <section>
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Notes <span class="normal-case font-normal text-neutral-400">(optional)</span></h2>
+            <button type="button" data-action="add-note" class="rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Add</button>
+          </div>
+          <div id="notes-list" class="mt-2 space-y-2"></div>
+        </section>
+
+        <!-- Token settings -->
+        <details class="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+          <summary class="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300">GitHub token <span id="token-state" class="ml-1 text-xs font-normal"></span></summary>
+          <div class="mt-3 space-y-2">
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              Create a <strong>fine-grained personal access token</strong> scoped to only the
+              <code>izzybennett.com</code> repo with <strong>Contents: Read &amp; write</strong>, then paste it here.
+              It's stored only on this device (localStorage) and never leaves it except to call GitHub. Revoke anytime in GitHub settings.
+            </p>
+            <div class="flex gap-2">
+              <input id="token" type="password" autocomplete="off" placeholder="github_pat_…"
+                class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100" />
+              <button type="button" id="save-token" class="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Save</button>
+              <button type="button" id="clear-token" class="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">Clear</button>
+            </div>
+          </div>
+        </details>
+
+        <!-- Preview -->
+        <details class="rounded-lg border border-neutral-200 dark:border-neutral-800">
+          <summary class="cursor-pointer px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Preview markdown</summary>
+          <div class="border-t border-neutral-200 p-3 dark:border-neutral-800">
+            <pre id="preview" class="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-3 text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">Fill in the form to see the generated file.</pre>
+            <button type="button" id="copy-md" class="mt-2 rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">Copy markdown</button>
+          </div>
+        </details>
+
+        <!-- Actions -->
+        <div class="sticky bottom-0 -mx-4 border-t border-neutral-200 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 dark:border-neutral-800 dark:bg-neutral-950/90">
+          <button type="submit" id="publish"
+            class="w-full rounded-lg bg-accent-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-accent-700 disabled:opacity-60">
+            Publish 🚀
+          </button>
+          <p id="status" class="mt-2 text-sm" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+    </main>
+
+    <!-- Row templates -->
+    <template id="tpl-tool">
+      <div data-unit="tool" class="flex gap-2">
+        <input type="text" data-field="tool" placeholder="e.g. Rolling pin" autocomplete="off"
+          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+      </div>
+    </template>
+
+    <template id="tpl-step">
+      <div data-unit="step" class="flex gap-2">
+        <textarea data-field="step" rows="2" placeholder="Describe the step…"
+          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"></textarea>
+        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 self-start rounded-lg border border-neutral-300 px-3 py-2 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+      </div>
+    </template>
+
+    <template id="tpl-note">
+      <div data-unit="note" class="flex gap-2">
+        <input type="text" data-field="note" placeholder="A tip or variation…" autocomplete="off"
+          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+      </div>
+    </template>
+
+    <template id="tpl-item">
+      <div data-unit="item" class="flex gap-2">
+        <input type="text" data-field="item" placeholder="e.g. 2 ¼ cup flour" autocomplete="off"
+          class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+        <button type="button" data-action="remove" aria-label="Remove" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+      </div>
+    </template>
+
+    <template id="tpl-group">
+      <div data-unit="group" class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+        <div class="flex gap-2">
+          <input type="text" data-field="group" placeholder="Group name (optional), e.g. Pie Crust" autocomplete="off"
+            class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100" />
+          <button type="button" data-action="remove" aria-label="Remove group" class="shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700">✕</button>
+        </div>
+        <div class="items-list mt-2 space-y-2"></div>
+        <button type="button" data-action="add-item" class="mt-2 rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900">+ Ingredient</button>
+      </div>
+    </template>
+
+    <script>
+      // ---- Repo constants -------------------------------------------------
+      const OWNER = 'ibennet';
+      const REPO = 'izzybennett.com';
+      const BRANCH = 'master';
+      const RECIPE_DIR = 'src/content/recipes';
+      const TOKEN_KEY = 'izzy-recipe-gh-token';
+
+      // ---- Element helpers ------------------------------------------------
+      const $ = <T extends HTMLElement = HTMLElement>(sel: string) =>
+        document.querySelector(sel) as T | null;
+      const form = $<HTMLFormElement>('#recipe-form')!;
+      const statusEl = $('#status')!;
+      const previewEl = $<HTMLPreElement>('#preview')!;
+      const tokenInput = $<HTMLInputElement>('#token')!;
+      const tokenState = $('#token-state')!;
+      const publishBtn = $<HTMLButtonElement>('#publish')!;
+
+      const tpl = (id: string) => document.getElementById(id) as HTMLTemplateElement;
+      function addRow(listSel: string, tplId: string): HTMLElement {
+        const list = $(listSel)!;
+        const node = tpl(tplId).content.firstElementChild!.cloneNode(true) as HTMLElement;
+        list.appendChild(node);
+        return node;
+      }
+      function addGroup(): HTMLElement {
+        const group = addRow('#ingredients-list', 'tpl-group');
+        const items = group.querySelector('.items-list')!;
+        const item = tpl('tpl-item').content.firstElementChild!.cloneNode(true) as HTMLElement;
+        items.appendChild(item);
+        return group;
+      }
+
+      // ---- Row add / remove (event delegation) ----------------------------
+      form.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest('button[data-action]') as HTMLButtonElement | null;
+        if (!btn) return;
+        switch (btn.dataset.action) {
+          case 'add-tool': addRow('#tools-list', 'tpl-tool'); break;
+          case 'add-step': addRow('#steps-list', 'tpl-step'); break;
+          case 'add-note': addRow('#notes-list', 'tpl-note'); break;
+          case 'add-group': addGroup(); break;
+          case 'add-item': {
+            const items = btn.closest('[data-unit="group"]')!.querySelector('.items-list')!;
+            const item = tpl('tpl-item').content.firstElementChild!.cloneNode(true) as HTMLElement;
+            items.appendChild(item);
+            break;
+          }
+          case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
+        }
+      });
+      form.addEventListener('input', refreshPreview);
+
+      // ---- Token storage --------------------------------------------------
+      function renderTokenState() {
+        const has = !!localStorage.getItem(TOKEN_KEY);
+        tokenState.textContent = has ? '✓ saved on this device' : '— not set';
+        tokenState.className = 'ml-1 text-xs font-normal ' + (has ? 'text-green-600 dark:text-green-500' : 'text-neutral-400');
+      }
+      $('#save-token')!.addEventListener('click', () => {
+        const v = tokenInput.value.trim();
+        if (!v) return;
+        localStorage.setItem(TOKEN_KEY, v);
+        tokenInput.value = '';
+        renderTokenState();
+        setStatus('Token saved.', 'ok');
+      });
+      $('#clear-token')!.addEventListener('click', () => {
+        localStorage.removeItem(TOKEN_KEY);
+        renderTokenState();
+        setStatus('Token cleared.', 'ok');
+      });
+
+      // ---- Status ---------------------------------------------------------
+      function setStatus(msg: string, kind: 'ok' | 'err' | 'info' | '' = '') {
+        statusEl.innerHTML = msg;
+        statusEl.className =
+          'mt-2 text-sm ' +
+          (kind === 'ok' ? 'text-green-600 dark:text-green-500'
+            : kind === 'err' ? 'text-red-600 dark:text-red-400'
+            : 'text-neutral-500 dark:text-neutral-400');
+      }
+
+      // ---- Read form into a recipe object ---------------------------------
+      type Group = { group?: string; items: string[] };
+      type Recipe = {
+        title: string; category: string; description?: string; keywords: string[];
+        prepTime?: number; cookTime?: number; servings?: number;
+        tools: string[]; ingredients: Group[]; steps: string[]; notes: string[]; draft: boolean;
+      };
+
+      const val = (sel: string) => ($<HTMLInputElement>(sel)?.value ?? '').trim();
+      const listVals = (listSel: string, field: string) =>
+        Array.from($(listSel)!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`))
+          .map((el) => el.value.trim())
+          .filter(Boolean);
+      const numOrUndef = (sel: string) => {
+        const v = val(sel);
+        if (v === '') return undefined;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : undefined;
+      };
+
+      function readForm(): Recipe {
+        const ingredients: Group[] = [];
+        for (const groupEl of $('#ingredients-list')!.querySelectorAll<HTMLElement>('[data-unit="group"]')) {
+          const items = Array.from(groupEl.querySelectorAll<HTMLInputElement>('[data-field="item"]'))
+            .map((el) => el.value.trim())
+            .filter(Boolean);
+          if (items.length === 0) continue;
+          const name = (groupEl.querySelector<HTMLInputElement>('[data-field="group"]')?.value ?? '').trim();
+          ingredients.push(name ? { group: name, items } : { items });
+        }
+        return {
+          title: val('#title'),
+          category: val('#category'),
+          description: val('#description') || undefined,
+          keywords: val('#keywords').split(',').map((k) => k.trim()).filter(Boolean),
+          prepTime: numOrUndef('#prepTime'),
+          cookTime: numOrUndef('#cookTime'),
+          servings: numOrUndef('#servings'),
+          tools: listVals('#tools-list', 'tool'),
+          ingredients,
+          steps: listVals('#steps-list', 'step'),
+          notes: listVals('#notes-list', 'note'),
+          draft: $<HTMLInputElement>('#draft')!.checked,
+        };
+      }
+
+      // ---- YAML frontmatter serializer ------------------------------------
+      const q = (s: string) => '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+
+      function toMarkdown(r: Recipe): string {
+        const L: string[] = ['---'];
+        L.push(`title: ${q(r.title)}`);
+        L.push(`category: ${q(r.category)}`);
+        if (r.description) L.push(`description: ${q(r.description)}`);
+        if (r.keywords.length) L.push(`keywords: [${r.keywords.map(q).join(', ')}]`);
+        if (r.prepTime !== undefined) L.push(`prepTime: ${r.prepTime}`);
+        if (r.cookTime !== undefined) L.push(`cookTime: ${r.cookTime}`);
+        if (r.servings !== undefined) L.push(`servings: ${r.servings}`);
+        if (r.tools.length) {
+          L.push('tools:');
+          for (const t of r.tools) L.push(`  - ${q(t)}`);
+        }
+        L.push('ingredients:');
+        for (const g of r.ingredients) {
+          if (g.group) {
+            L.push(`  - group: ${q(g.group)}`);
+            L.push('    items:');
+          } else {
+            L.push('  - items:');
+          }
+          for (const it of g.items) L.push(`      - ${q(it)}`);
+        }
+        L.push('steps:');
+        for (const s of r.steps) L.push(`  - ${q(s)}`);
+        if (r.notes.length) {
+          L.push('notes:');
+          for (const n of r.notes) L.push(`  - ${q(n)}`);
+        }
+        if (r.draft) L.push('draft: true');
+        L.push('---');
+        return L.join('\n') + '\n';
+      }
+
+      function slugify(t: string): string {
+        return t.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      }
+
+      function validate(r: Recipe): string | null {
+        if (!r.title) return 'Add a title.';
+        if (!slugify(r.title)) return 'Title needs at least one letter or number.';
+        if (!r.category) return 'Pick a category.';
+        if (r.ingredients.length === 0) return 'Add at least one ingredient.';
+        if (r.steps.length === 0) return 'Add at least one step.';
+        return null;
+      }
+
+      function refreshPreview() {
+        try {
+          previewEl.textContent = toMarkdown(readForm());
+        } catch {
+          /* ignore mid-edit errors */
+        }
+      }
+
+      // ---- GitHub API -----------------------------------------------------
+      function b64(str: string): string {
+        const bytes = new TextEncoder().encode(str);
+        let bin = '';
+        for (const byte of bytes) bin += String.fromCharCode(byte);
+        return btoa(bin);
+      }
+      const ghHeaders = (token: string) => ({
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      });
+
+      async function getExistingSha(path: string, token: string): Promise<string | null> {
+        const res = await fetch(
+          `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`,
+          { headers: ghHeaders(token) }
+        );
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(await ghError(res));
+        const data = await res.json();
+        return data.sha as string;
+      }
+
+      async function ghError(res: Response): Promise<string> {
+        let detail = '';
+        try { detail = (await res.json()).message ?? ''; } catch { /* noop */ }
+        if (res.status === 401) return 'GitHub rejected the token (401). Check it in the token section.';
+        if (res.status === 403) return `Forbidden (403). Token may lack Contents write on this repo. ${detail}`;
+        if (res.status === 409 || res.status === 422) return `Conflict (${res.status}). ${detail}`;
+        return `GitHub error ${res.status}. ${detail}`;
+      }
+
+      // ---- Copy markdown --------------------------------------------------
+      $('#copy-md')!.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(toMarkdown(readForm()));
+          setStatus('Markdown copied.', 'ok');
+        } catch {
+          setStatus('Could not copy — select the preview text manually.', 'err');
+        }
+      });
+
+      // ---- Submit ---------------------------------------------------------
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const recipe = readForm();
+        const problem = validate(recipe);
+        if (problem) { setStatus(problem, 'err'); return; }
+
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) {
+          setStatus('No GitHub token saved. Open “GitHub token” above to add one (or use Copy markdown).', 'err');
+          return;
+        }
+
+        const slug = slugify(recipe.title);
+        const path = `${RECIPE_DIR}/${slug}.md`;
+        const md = toMarkdown(recipe);
+
+        publishBtn.disabled = true;
+        try {
+          setStatus('Checking for an existing recipe…', 'info');
+          const sha = await getExistingSha(path, token);
+          if (sha && !confirm(`A recipe already exists at "${slug}.md". Overwrite it?`)) {
+            setStatus('Cancelled — nothing published.', 'info');
+            return;
+          }
+
+          setStatus('Publishing…', 'info');
+          const body: Record<string, unknown> = {
+            message: `Add recipe: ${recipe.title}`,
+            content: b64(md),
+            branch: BRANCH,
+          };
+          if (sha) body.sha = sha;
+
+          const res = await fetch(
+            `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`,
+            { method: 'PUT', headers: ghHeaders(token), body: JSON.stringify(body) }
+          );
+          if (!res.ok) throw new Error(await ghError(res));
+
+          const url = `https://izzybennett.com/recipes/${slug}/`;
+          setStatus(
+            `Published! 🎉 It'll be live in a minute or two at <a class="underline" href="${url}">${url}</a>`,
+            'ok'
+          );
+          form.reset();
+          resetDynamic();
+        } catch (err) {
+          setStatus(err instanceof Error ? err.message : 'Something went wrong.', 'err');
+        } finally {
+          publishBtn.disabled = false;
+        }
+      });
+
+      // ---- Init -----------------------------------------------------------
+      function resetDynamic() {
+        $('#tools-list')!.innerHTML = '';
+        $('#notes-list')!.innerHTML = '';
+        $('#ingredients-list')!.innerHTML = '';
+        $('#steps-list')!.innerHTML = '';
+        addGroup();
+        addRow('#steps-list', 'tpl-step');
+        refreshPreview();
+      }
+      renderTokenState();
+      resetDynamic();
+    </script>
+  </body>
+</html>
