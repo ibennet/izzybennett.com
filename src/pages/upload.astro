@@ -32,10 +32,19 @@ const removeBtn =
   <body class="min-h-screen bg-white text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
     <main class="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
       <header class="flex items-baseline justify-between gap-3">
-        <h1 class="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Add a recipe</h1>
+        <h1 id="page-title" class="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Add a recipe</h1>
         <a href="/recipes/" class="text-sm text-accent-600 hover:underline dark:text-accent-100">← Recipes</a>
       </header>
-      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-500">Fill it in, hit publish, and it goes live in a minute or two.</p>
+      <p id="page-intro" class="mt-1 text-sm text-neutral-500 dark:text-neutral-500">Fill it in, hit publish, and it goes live in a minute or two.</p>
+
+      <!-- Pick an existing recipe to edit it, or keep "New recipe" to add a fresh one.
+           Populated from /recipes.json on load; selecting one switches the form to edit mode. -->
+      <div class="mt-4">
+        <label for="recipe-picker" class={labelCls}>Load existing recipe</label>
+        <select id="recipe-picker" class={fieldInput}>
+          <option value="">➕ New recipe</option>
+        </select>
+      </div>
 
       <form id="recipe-form" class="mt-6 space-y-8" novalidate>
         <!-- Basics -->
@@ -157,6 +166,10 @@ const removeBtn =
             class="w-full rounded-lg bg-accent-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-accent-700 disabled:opacity-60">
             Publish 🚀
           </button>
+          <button type="button" id="delete-recipe"
+            class="mt-2 hidden w-full rounded-lg border border-red-300 px-4 py-2.5 text-center font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40">
+            Delete recipe
+          </button>
           <p id="status" class="mt-2 text-sm" role="status" aria-live="polite"></p>
         </div>
       </form>
@@ -207,6 +220,19 @@ const removeBtn =
       const tokenInput = $<HTMLInputElement>('#token')!;
       const tokenState = $('#token-state')!;
       const publishBtn = $<HTMLButtonElement>('#publish')!;
+      const pageTitle = $('#page-title')!;
+      const pageIntro = $('#page-intro')!;
+      const picker = $<HTMLSelectElement>('#recipe-picker')!;
+      const deleteBtn = $<HTMLButtonElement>('#delete-recipe')!;
+
+      // Edit-mode state: the slug of the recipe currently being edited (null = add mode),
+      // plus an index of every recipe's data keyed by slug (loaded once from /recipes.json).
+      let editingSlug: string | null = null;
+      const recipesBySlug: Record<string, Recipe> = {};
+      // True once the user has typed into the form since the last load/save; used to warn
+      // before the picker discards unsaved edits. Set only by real user input (not by the
+      // programmatic value-setting in fillForm/resetDynamic, which fire no 'input' event).
+      let formDirty = false;
 
       const tpl = (id: string) => document.getElementById(id) as HTMLTemplateElement;
       function addRow(listSel: string, tplId: string): HTMLElement {
@@ -223,13 +249,31 @@ const removeBtn =
         input.placeholder = placeholder;
         return row;
       }
-      function addItem(itemsList: Element): void {
-        itemsList.appendChild(makeRow('item', 'e.g. 2 ¼ cup flour'));
+      // Single source of truth for the simple single-line row types (field name + placeholder),
+      // shared by add mode (click handler) and edit mode (fillForm/fillList) so they can't drift.
+      const SIMPLE_ROWS = {
+        tool: 'e.g. Rolling pin',
+        note: 'A tip or variation…',
+        item: 'e.g. 2 ¼ cup flour',
+      } as const;
+      const makeSimpleRow = (field: keyof typeof SIMPLE_ROWS) => makeRow(field, SIMPLE_ROWS[field]);
+
+      function addItem(itemsList: Element): HTMLElement {
+        const row = makeSimpleRow('item');
+        itemsList.appendChild(row);
+        return row;
       }
       function addGroup(): HTMLElement {
         const group = addRow('#ingredients-list', 'tpl-group');
         addItem(group.querySelector('.items-list')!);
         return group;
+      }
+      // Build a picker <option>; shared by the initial index load and post-add registration.
+      function makeOption(slug: string, title: string): HTMLOptionElement {
+        const opt = document.createElement('option');
+        opt.value = slug;
+        opt.textContent = title;
+        return opt;
       }
 
       // ---- Row add / remove (event delegation) ----------------------------
@@ -237,15 +281,18 @@ const removeBtn =
         const btn = (e.target as HTMLElement).closest('button[data-action]') as HTMLButtonElement | null;
         if (!btn) return;
         switch (btn.dataset.action) {
-          case 'add-tool': $('#tools-list')!.appendChild(makeRow('tool', 'e.g. Rolling pin')); break;
-          case 'add-note': $('#notes-list')!.appendChild(makeRow('note', 'A tip or variation…')); break;
+          case 'add-tool': $('#tools-list')!.appendChild(makeSimpleRow('tool')); break;
+          case 'add-note': $('#notes-list')!.appendChild(makeSimpleRow('note')); break;
           case 'add-step': addRow('#steps-list', 'tpl-step'); break;
           case 'add-group': addGroup(); break;
           case 'add-item': addItem(btn.closest('[data-unit="group"]')!.querySelector('.items-list')!); break;
           case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
         }
       });
-      form.addEventListener('input', refreshPreview);
+      form.addEventListener('input', () => {
+        formDirty = true;
+        refreshPreview();
+      });
 
       // ---- Token storage --------------------------------------------------
       function renderTokenState() {
@@ -467,20 +514,24 @@ const removeBtn =
           return;
         }
 
-        const slug = slugify(recipe.title);
+        // In edit mode the file keeps its original slug even if the title changed, so the
+        // URL stays stable and no orphaned file is left behind. Add mode slugifies the title.
+        const slug = editingSlug ?? slugify(recipe.title);
         const path = `${RECIPE_DIR}/${slug}.md`;
         const md = toMarkdown(recipe);
 
         publishBtn.disabled = true;
+        deleteBtn.disabled = true;
         try {
-          setStatus('Checking for an existing recipe…', 'info');
+          setStatus(editingSlug ? 'Saving…' : 'Checking for an existing recipe…', 'info');
           const sha = await getExistingSha(path, token);
-          if (sha && !confirm(`A recipe already exists at "${slug}.md". Overwrite it?`)) {
+          // Only guard against clobbering in add mode; in edit mode overwriting is the point.
+          if (!editingSlug && sha && !confirm(`A recipe already exists at "${slug}.md". Overwrite it?`)) {
             setStatus('Cancelled — nothing published.', 'info');
             return;
           }
 
-          setStatus('Publishing…', 'info');
+          setStatus(editingSlug ? 'Saving…' : 'Publishing…', 'info');
           const body: Record<string, unknown> = {
             message: `${sha ? 'Update' : 'Add'} recipe: ${recipe.title}`,
             content: b64(md),
@@ -495,19 +546,190 @@ const removeBtn =
           if (!res.ok) throw new Error(await ghError(res));
 
           const url = `https://izzybennett.com/recipes/${slug}/`;
-          setStatus("Published! 🎉 It'll be live in a minute or two at ", 'ok');
+          setStatus((editingSlug ? 'Saved! 🎉' : 'Published! 🎉') + " It'll be live in a minute or two at ", 'ok');
           const link = document.createElement('a');
           link.href = url;
           link.textContent = url;
           link.className = 'underline';
           statusEl.appendChild(link);
-          form.reset();
-          resetDynamic();
+
+          if (editingSlug) {
+            // Stay in edit mode for easy further tweaks; keep the local index + picker label in sync.
+            recipesBySlug[editingSlug] = recipe;
+            const opt = picker.querySelector<HTMLOptionElement>(`option[value="${editingSlug}"]`);
+            if (opt) opt.textContent = recipe.title;
+          } else {
+            // Register the freshly-created recipe so it's immediately pickable without a reload.
+            if (!recipesBySlug[slug]) picker.appendChild(makeOption(slug, recipe.title));
+            recipesBySlug[slug] = recipe;
+            form.reset();
+            resetDynamic();
+          }
+          formDirty = false;
         } catch (err) {
           setStatus(err instanceof Error ? err.message : 'Something went wrong.', 'err');
         } finally {
           publishBtn.disabled = false;
+          deleteBtn.disabled = false;
         }
+      });
+
+      // ---- Delete ---------------------------------------------------------
+      deleteBtn.addEventListener('click', async () => {
+        if (!editingSlug) return;
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) {
+          setStatus('No GitHub token saved. Open “GitHub token” above to add one.', 'err');
+          return;
+        }
+        const slug = editingSlug;
+        const title = recipesBySlug[slug]?.title ?? slug;
+        if (!confirm(`Delete “${title}”? This removes ${slug}.md from the site.`)) return;
+
+        const path = `${RECIPE_DIR}/${slug}.md`;
+        deleteBtn.disabled = true;
+        publishBtn.disabled = true;
+        try {
+          setStatus('Deleting…', 'info');
+          const sha = await getExistingSha(path, token);
+          if (!sha) {
+            setStatus('That recipe no longer exists on the server.', 'err');
+            return;
+          }
+          const res = await fetch(
+            `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`,
+            {
+              method: 'DELETE',
+              headers: ghHeaders(token),
+              body: JSON.stringify({ message: `Delete recipe: ${title}`, sha, branch: BRANCH }),
+            }
+          );
+          if (!res.ok) throw new Error(await ghError(res));
+
+          // Drop it from the local index + picker, then fall back to a blank add form.
+          delete recipesBySlug[slug];
+          picker.querySelector<HTMLOptionElement>(`option[value="${slug}"]`)?.remove();
+          enterAddMode();
+          setStatus(`Deleted “${title}”. The site will update in a minute or two.`, 'ok');
+        } catch (err) {
+          setStatus(err instanceof Error ? err.message : 'Something went wrong.', 'err');
+        } finally {
+          deleteBtn.disabled = false;
+          publishBtn.disabled = false;
+        }
+      });
+
+      // ---- Edit mode: load existing recipes & prefill ---------------------
+      async function loadRecipeIndex() {
+        try {
+          const res = await fetch('/recipes.json', { headers: { Accept: 'application/json' } });
+          if (!res.ok) return;
+          const list = (await res.json()) as Array<Recipe & { slug: string }>;
+          const frag = document.createDocumentFragment();
+          for (const r of list) {
+            recipesBySlug[r.slug] = r;
+            frag.appendChild(makeOption(r.slug, r.title));
+          }
+          picker.appendChild(frag);
+          // Deep link: /upload?edit=<slug> jumps straight into editing once data is in.
+          const wanted = new URLSearchParams(location.search).get('edit');
+          if (wanted && recipesBySlug[wanted]) enterEditMode(wanted);
+        } catch {
+          /* the picker is a convenience — a failed index just leaves add mode intact */
+        }
+      }
+
+      function setRowValue(row: HTMLElement, field: string, value: string): void {
+        row.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`)!.value = value;
+      }
+
+      // Clear a list container and repopulate it with one simple row per value.
+      function fillList(listSel: string, field: keyof typeof SIMPLE_ROWS, values: string[] | undefined): void {
+        const list = $(listSel)!;
+        list.innerHTML = '';
+        for (const v of values ?? []) {
+          const row = makeSimpleRow(field);
+          row.querySelector('input')!.value = v;
+          list.appendChild(row);
+        }
+      }
+
+      function fillForm(r: Recipe): void {
+        const setVal = (sel: string, v: string | number | undefined) => {
+          const el = $<HTMLInputElement>(sel);
+          if (el) el.value = v === undefined || v === null ? '' : String(v);
+        };
+        setVal('#title', r.title);
+        $<HTMLSelectElement>('#category')!.value = r.category;
+        setVal('#description', r.description);
+        setVal('#keywords', (r.keywords ?? []).join(', '));
+        setVal('#prepTime', r.prepTime);
+        setVal('#cookTime', r.cookTime);
+        setVal('#servings', r.servings);
+        $<HTMLInputElement>('#draft')!.checked = !!r.draft;
+
+        // Rebuild the dynamic lists from data, reusing the same row builders as add mode.
+        fillList('#tools-list', 'tool', r.tools);
+        fillList('#notes-list', 'note', r.notes);
+
+        $('#steps-list')!.innerHTML = '';
+        for (const s of r.steps ?? []) {
+          const row = addRow('#steps-list', 'tpl-step');
+          setRowValue(row, 'step', s);
+        }
+
+        $('#ingredients-list')!.innerHTML = '';
+        const groups = r.ingredients ?? [];
+        if (groups.length === 0) addGroup();
+        for (const g of groups) {
+          const groupEl = addRow('#ingredients-list', 'tpl-group');
+          if (g.group) setRowValue(groupEl, 'group', g.group);
+          const itemsList = groupEl.querySelector('.items-list')!;
+          const items = g.items ?? [];
+          if (items.length === 0) addItem(itemsList);
+          for (const it of items) addItem(itemsList).querySelector('input')!.value = it;
+        }
+      }
+
+      function enterEditMode(slug: string): void {
+        const r = recipesBySlug[slug];
+        if (!r) return;
+        editingSlug = slug;
+        picker.value = slug;
+        fillForm(r);
+        pageTitle.textContent = 'Edit recipe';
+        pageIntro.textContent = 'Tweak it, save, and the change goes live in a minute or two.';
+        publishBtn.textContent = 'Save changes';
+        deleteBtn.classList.remove('hidden');
+        refreshPreview();
+        setStatus(`Editing “${r.title}”.`, 'info');
+        formDirty = false;
+      }
+
+      function enterAddMode(): void {
+        editingSlug = null;
+        picker.value = '';
+        pageTitle.textContent = 'Add a recipe';
+        pageIntro.textContent = 'Fill it in, hit publish, and it goes live in a minute or two.';
+        publishBtn.textContent = 'Publish 🚀';
+        deleteBtn.classList.add('hidden');
+        form.reset();
+        resetDynamic();
+        setStatus('', '');
+        formDirty = false;
+      }
+
+      picker.addEventListener('change', () => {
+        const slug = picker.value;
+        const current = editingSlug ?? '';
+        if (slug === current) return;
+        // Guard against silently wiping in-progress edits when switching recipes.
+        if (formDirty && !confirm('Discard unsaved changes to this recipe?')) {
+          picker.value = current;
+          return;
+        }
+        if (slug && recipesBySlug[slug]) enterEditMode(slug);
+        else enterAddMode();
       });
 
       // ---- Init -----------------------------------------------------------
@@ -522,6 +744,7 @@ const removeBtn =
       }
       renderTokenState();
       resetDynamic();
+      loadRecipeIndex();
     </script>
   </body>
 </html>
