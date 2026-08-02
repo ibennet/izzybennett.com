@@ -229,6 +229,10 @@ const removeBtn =
       // plus an index of every recipe's data keyed by slug (loaded once from /recipes.json).
       let editingSlug: string | null = null;
       const recipesBySlug: Record<string, Recipe> = {};
+      // True once the user has typed into the form since the last load/save; used to warn
+      // before the picker discards unsaved edits. Set only by real user input (not by the
+      // programmatic value-setting in fillForm/resetDynamic, which fire no 'input' event).
+      let formDirty = false;
 
       const tpl = (id: string) => document.getElementById(id) as HTMLTemplateElement;
       function addRow(listSel: string, tplId: string): HTMLElement {
@@ -285,7 +289,10 @@ const removeBtn =
           case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
         }
       });
-      form.addEventListener('input', refreshPreview);
+      form.addEventListener('input', () => {
+        formDirty = true;
+        refreshPreview();
+      });
 
       // ---- Token storage --------------------------------------------------
       function renderTokenState() {
@@ -514,6 +521,7 @@ const removeBtn =
         const md = toMarkdown(recipe);
 
         publishBtn.disabled = true;
+        deleteBtn.disabled = true;
         try {
           setStatus(editingSlug ? 'Saving…' : 'Checking for an existing recipe…', 'info');
           const sha = await getExistingSha(path, token);
@@ -557,10 +565,12 @@ const removeBtn =
             form.reset();
             resetDynamic();
           }
+          formDirty = false;
         } catch (err) {
           setStatus(err instanceof Error ? err.message : 'Something went wrong.', 'err');
         } finally {
           publishBtn.disabled = false;
+          deleteBtn.disabled = false;
         }
       });
 
@@ -693,6 +703,7 @@ const removeBtn =
         deleteBtn.classList.remove('hidden');
         refreshPreview();
         setStatus(`Editing “${r.title}”.`, 'info');
+        formDirty = false;
       }
 
       function enterAddMode(): void {
@@ -705,10 +716,18 @@ const removeBtn =
         form.reset();
         resetDynamic();
         setStatus('', '');
+        formDirty = false;
       }
 
       picker.addEventListener('change', () => {
         const slug = picker.value;
+        const current = editingSlug ?? '';
+        if (slug === current) return;
+        // Guard against silently wiping in-progress edits when switching recipes.
+        if (formDirty && !confirm('Discard unsaved changes to this recipe?')) {
+          picker.value = current;
+          return;
+        }
         if (slug && recipesBySlug[slug]) enterEditMode(slug);
         else enterAddMode();
       });
