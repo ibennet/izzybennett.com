@@ -280,6 +280,17 @@ const removeBtn =
         return opt;
       }
 
+      // Reconcile the in-memory index + picker with a just-saved recipe so the UI matches what a
+      // reload would show. Drafts are excluded from /recipes.json, so they're kept out of the
+      // picker (a saved draft would otherwise appear, then vanish on the next load).
+      function syncPickerEntry(slug, recipe) {
+        recipesBySlug[slug] = recipe;
+        const opt = picker.querySelector(`option[value="${slug}"]`);
+        if (recipe.draft) opt?.remove();
+        else if (opt) opt.textContent = recipe.title;
+        else picker.appendChild(makeOption(slug, recipe.title));
+      }
+
       // ---- Row add / remove (event delegation) ----------------------------
       form.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-action]');
@@ -550,23 +561,27 @@ const removeBtn =
           }
           if (!res.ok) throw new Error(await apiError(res));
 
-          const url = `${SITE_ORIGIN}/recipes/${slug}/`;
-          setStatus((editingSlug ? 'Saved! 🎉' : 'Published! 🎉') + " It'll be live in a minute or two at ", 'ok');
-          const link = document.createElement('a');
-          link.href = url;
-          link.textContent = url;
-          link.className = 'underline';
-          statusEl.appendChild(link);
+          // Keep the picker + index in sync with the save (drops drafts from the picker).
+          syncPickerEntry(slug, recipe);
 
-          if (editingSlug) {
-            // Stay in edit mode for easy further tweaks; keep the local index + picker label in sync.
-            recipesBySlug[editingSlug] = recipe;
-            const opt = picker.querySelector(`option[value="${editingSlug}"]`);
-            if (opt) opt.textContent = recipe.title;
+          if (recipe.draft) {
+            // A draft has no detail page, so don't dangle a "live at…" link it can't fulfill.
+            setStatus(
+              (editingSlug ? 'Saved' : 'Created') +
+                ' as a draft 📝 — hidden from the site and the picker until you un-draft it in the repo.',
+              'ok'
+            );
           } else {
-            // Register the freshly-created recipe so it's immediately pickable without a reload.
-            if (!recipesBySlug[slug]) picker.appendChild(makeOption(slug, recipe.title));
-            recipesBySlug[slug] = recipe;
+            setStatus((editingSlug ? 'Saved! 🎉' : 'Published! 🎉') + " It'll be live in a minute or two at ", 'ok');
+            const link = document.createElement('a');
+            link.href = `${SITE_ORIGIN}/recipes/${slug}/`;
+            link.textContent = link.href;
+            link.className = 'underline';
+            statusEl.appendChild(link);
+          }
+
+          // Add mode: clear the form for the next recipe. Edit mode: stay put for further tweaks.
+          if (!editingSlug) {
             form.reset();
             resetDynamic();
           }

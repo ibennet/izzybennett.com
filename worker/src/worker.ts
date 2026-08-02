@@ -58,28 +58,45 @@ export default {
     if (request.method === 'OPTIONS') return preflight(env);
 
     try {
+      // `await` matters: it lets this try/catch catch async rejections, so a thrown ApiError
+      // becomes a proper JSON response WITH CORS headers (a bare throw would yield Cloudflare's
+      // headerless 500, which the browser can't even read across origins).
       switch (`${request.method} ${url.pathname}`) {
         case 'GET /login':
           return handleLogin(url, env);
         case 'GET /callback':
-          return handleCallback(request, url, env);
+          // A browser navigation lands here, so surface failures as the friendly HTML page.
+          return await handleCallback(request, url, env).catch(() =>
+            htmlError('Something went wrong during sign-in. Please try again.')
+          );
         case 'POST /api/recipe':
-          return withSession(request, env, (_id, s) => putRecipe(request, env, s));
+          return await withSession(request, env, (_id, s) => putRecipe(request, env, s));
         case 'DELETE /api/recipe':
-          return withSession(request, env, (_id, s) => deleteRecipe(request, env, s));
+          return await withSession(request, env, (_id, s) => deleteRecipe(request, env, s));
         case 'POST /logout':
-          return withSession(request, env, (id) => logout(env, id));
+          return await withSession(request, env, (id) => logout(env, id));
         case 'GET /':
           return json(env, 200, { ok: true, service: 'izzy-recipe-api' });
         default:
           return json(env, 404, { error: 'Not found' });
       }
     } catch (err) {
+      if (err instanceof ApiError) return json(env, err.status, { error: err.message });
       const message = err instanceof Error ? err.message : 'Unexpected error';
       return json(env, 500, { error: message });
     }
   },
 };
+
+// Thrown by helpers to signal a specific HTTP status to the client, instead of a generic 500.
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 // ---- OAuth: login ---------------------------------------------------------
 
@@ -137,7 +154,7 @@ async function handleCallback(request: Request, url: URL, env: Env): Promise<Res
   });
   const user = (await userRes.json()) as { login?: string };
   if (!user.login || user.login.toLowerCase() !== env.ALLOWED_LOGIN.toLowerCase()) {
-    return htmlError(`Sorry, @${user.login ?? 'unknown'} is not allowed to edit recipes.`);
+    return htmlError(`Sorry, @${user.login ?? 'unknown'} is not allowed to edit recipes.`, 403);
   }
 
   // Mint an opaque session id; the GitHub token stays server-side in KV.
@@ -210,13 +227,15 @@ async function getExisting(
 ): Promise<{ sha: string; content: string } | null> {
   const res = await fetch(`${contentsUrl(env, path)}?ref=${env.BRANCH}`, { headers: ghHeaders(token) });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GitHub error ${res.status} while reading existing file.`);
+  if (res.status === 401) throw new ApiError(401, 'Your GitHub sign-in expired. Please sign in again.');
+  if (!res.ok) throw new ApiError(502, `GitHub error ${res.status} while reading the recipe.`);
   const data = (await res.json()) as { sha: string; content?: string };
   return { sha: data.sha, content: data.content ? unb64(data.content) : '' };
 }
 
-// Send a create/update/delete to the GitHub Contents API. Returns null on success, or a ready-to-
-// send 502 Response if GitHub rejected it — both mutation routes share this uniform translation.
+// Send a create/update/delete to the GitHub Contents API. Resolves on success; throws an
+// ApiError otherwise — 401 (dead token) is surfaced as-is so the client clears its session,
+// anything else becomes a 502. Both mutation routes share this uniform translation.
 async function commit(
   env: Env,
   token: string,
@@ -224,17 +243,16 @@ async function commit(
   path: string,
   payload: Record<string, unknown>,
   action: string
-): Promise<Response | null> {
+): Promise<void> {
   const res = await fetch(contentsUrl(env, path), {
     method,
     headers: { ...ghHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const detail = await res.text();
-    return json(env, 502, { error: `GitHub rejected the ${action} (${res.status}).`, detail });
-  }
-  return null;
+  if (res.ok) return;
+  if (res.status === 401) throw new ApiError(401, 'Your GitHub sign-in expired. Please sign in again.');
+  const detail = await res.text();
+  throw new ApiError(502, `GitHub rejected the ${action} (${res.status}). ${detail}`.trim());
 }
 
 // UTF-8 safe base64 for the file content GitHub's Contents API expects.
@@ -317,8 +335,7 @@ async function putRecipe(request: Request, env: Env, session: Session): Promise<
   };
   if (existing) payload.sha = existing.sha;
 
-  const err = await commit(env, session.token, 'PUT', path, payload, 'commit');
-  if (err) return err;
+  await commit(env, session.token, 'PUT', path, payload, 'commit');
   return json(env, 200, { ok: true, created: !existing });
 }
 
@@ -330,12 +347,11 @@ async function deleteRecipe(request: Request, env: Env, session: Session): Promi
   const existing = await getExisting(env, session.token, path);
   if (!existing) return json(env, 404, { error: 'That recipe no longer exists.' });
 
-  const err = await commit(env, session.token, 'DELETE', path, {
+  await commit(env, session.token, 'DELETE', path, {
     message: body.message || `Delete recipe: ${body.slug}`,
     sha: existing.sha,
     branch: env.BRANCH,
   }, 'delete');
-  if (err) return err;
   return json(env, 200, { ok: true });
 }
 
@@ -363,13 +379,13 @@ function json(env: Env, status: number, data: unknown): Response {
 }
 
 // Minimal HTML page for OAuth redirect errors (the browser lands here directly, not via fetch).
-function htmlError(message: string): Response {
+function htmlError(message: string, status = 400): Response {
   const safe = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return new Response(
     `<!doctype html><meta charset="utf-8"><title>Sign-in error</title>` +
       `<body style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem">` +
       `<h1>Sign-in error</h1><p>${safe}</p><p><a href="/login">Try again</a></p></body>`,
-    { status: 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
   );
 }
 
