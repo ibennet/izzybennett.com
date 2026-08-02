@@ -40,6 +40,16 @@ const GH_OAUTH = 'https://github.com/login/oauth';
 const UA = 'izzy-recipe-worker';
 const SLUG_RE = /^[a-z0-9-]+$/;
 
+// Top-level frontmatter keys the /upload form owns and re-serializes on every save. Any OTHER
+// key found in an existing recipe (e.g. `image`) is NOT modelled by the form, so on update we
+// carry it over from the old file — otherwise editing a recipe through /upload would silently
+// drop it. Note: keys the form DOES manage but omits when empty (draft, description, …) are
+// deliberately absent here, so clearing them still works.
+const MANAGED_FIELDS = new Set([
+  'title', 'description', 'category', 'keywords', 'prepTime', 'cookTime',
+  'servings', 'tools', 'ingredients', 'steps', 'notes', 'draft',
+]);
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -191,12 +201,18 @@ function ghHeaders(token: string) {
   };
 }
 
-async function getSha(env: Env, token: string, path: string): Promise<string | null> {
+// Fetch the existing file's sha AND its decoded markdown (the Contents API returns both in one
+// GET, so this costs no extra round-trip). Returns null if the file doesn't exist yet.
+async function getExisting(
+  env: Env,
+  token: string,
+  path: string
+): Promise<{ sha: string; content: string } | null> {
   const res = await fetch(`${contentsUrl(env, path)}?ref=${env.BRANCH}`, { headers: ghHeaders(token) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GitHub error ${res.status} while reading existing file.`);
-  const data = (await res.json()) as { sha: string };
-  return data.sha;
+  const data = (await res.json()) as { sha: string; content?: string };
+  return { sha: data.sha, content: data.content ? unb64(data.content) : '' };
 }
 
 // Send a create/update/delete to the GitHub Contents API. Returns null on success, or a ready-to-
@@ -229,6 +245,50 @@ function b64(str: string): string {
   return btoa(bin);
 }
 
+// Inverse of b64 — GitHub returns file content as base64 with embedded newlines.
+function unb64(b64str: string): string {
+  const bin = atob(b64str.replace(/\n/g, ''));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+// Split a top-level frontmatter block into ordered { key, lines } entries. A key line starts a
+// new entry; indented / list continuation lines belong to the entry above them.
+function frontmatterEntries(fm: string): Array<{ key: string; lines: string[] }> {
+  const entries: Array<{ key: string; lines: string[] }> = [];
+  let cur: { key: string; lines: string[] } | null = null;
+  for (const line of fm.split('\n')) {
+    const m = line.match(/^([A-Za-z0-9_]+):/);
+    if (m) {
+      cur = { key: m[1], lines: [line] };
+      entries.push(cur);
+    } else if (cur) {
+      cur.lines.push(line);
+    }
+  }
+  return entries;
+}
+
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
+
+// Carry any unmodelled top-level frontmatter (e.g. `image`) from the old file into the freshly
+// generated markdown, so editing through /upload never drops fields the form doesn't render.
+function preserveUnmanaged(oldMarkdown: string, newMarkdown: string): string {
+  const oldFm = oldMarkdown.match(FRONTMATTER_RE);
+  const newFm = newMarkdown.match(FRONTMATTER_RE);
+  if (!oldFm || !newFm) return newMarkdown;
+
+  const newKeys = new Set(frontmatterEntries(newFm[1]).map((e) => e.key));
+  const carried = frontmatterEntries(oldFm[1])
+    .filter((e) => !MANAGED_FIELDS.has(e.key) && !newKeys.has(e.key))
+    .flatMap((e) => e.lines);
+  if (carried.length === 0) return newMarkdown;
+
+  const merged = `---\n${newFm[1]}\n${carried.join('\n')}\n---\n`;
+  // Function replacement so `$` in preserved values isn't treated as a capture reference.
+  return newMarkdown.replace(FRONTMATTER_RE, () => merged);
+}
+
 async function putRecipe(request: Request, env: Env, session: Session): Promise<Response> {
   const body = (await request.json()) as {
     slug?: string;
@@ -242,22 +302,24 @@ async function putRecipe(request: Request, env: Env, session: Session): Promise<
     return json(env, 400, { error: 'Missing recipe content.' });
   }
 
-  const sha = await getSha(env, session.token, path);
+  const existing = await getExisting(env, session.token, path);
   // Guard against silently clobbering an existing recipe in add mode; edit mode passes overwrite.
-  if (sha && !body.overwrite) {
+  if (existing && !body.overwrite) {
     return json(env, 409, { error: 'A recipe already exists at that slug.', exists: true });
   }
 
+  // On update, re-attach any frontmatter the form doesn't model (e.g. `image`) from the old file.
+  const markdown = existing ? preserveUnmanaged(existing.content, body.markdown) : body.markdown;
   const payload: Record<string, unknown> = {
-    message: body.message || `${sha ? 'Update' : 'Add'} recipe: ${body.slug}`,
-    content: b64(body.markdown),
+    message: body.message || `${existing ? 'Update' : 'Add'} recipe: ${body.slug}`,
+    content: b64(markdown),
     branch: env.BRANCH,
   };
-  if (sha) payload.sha = sha;
+  if (existing) payload.sha = existing.sha;
 
   const err = await commit(env, session.token, 'PUT', path, payload, 'commit');
   if (err) return err;
-  return json(env, 200, { ok: true, created: !sha });
+  return json(env, 200, { ok: true, created: !existing });
 }
 
 async function deleteRecipe(request: Request, env: Env, session: Session): Promise<Response> {
@@ -265,12 +327,12 @@ async function deleteRecipe(request: Request, env: Env, session: Session): Promi
   const path = recipePath(env, body.slug);
   if (!path) return json(env, 400, { error: 'Invalid recipe slug.' });
 
-  const sha = await getSha(env, session.token, path);
-  if (!sha) return json(env, 404, { error: 'That recipe no longer exists.' });
+  const existing = await getExisting(env, session.token, path);
+  if (!existing) return json(env, 404, { error: 'That recipe no longer exists.' });
 
   const err = await commit(env, session.token, 'DELETE', path, {
     message: body.message || `Delete recipe: ${body.slug}`,
-    sha,
+    sha: existing.sha,
     branch: env.BRANCH,
   }, 'delete');
   if (err) return err;
