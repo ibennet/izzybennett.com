@@ -228,7 +228,7 @@ const removeBtn =
       // Edit-mode state: the slug of the recipe currently being edited (null = add mode),
       // plus an index of every recipe's data keyed by slug (loaded once from /recipes.json).
       let editingSlug: string | null = null;
-      const recipesBySlug: Record<string, Recipe & { slug: string }> = {};
+      const recipesBySlug: Record<string, Recipe> = {};
 
       const tpl = (id: string) => document.getElementById(id) as HTMLTemplateElement;
       function addRow(listSel: string, tplId: string): HTMLElement {
@@ -245,13 +245,31 @@ const removeBtn =
         input.placeholder = placeholder;
         return row;
       }
-      function addItem(itemsList: Element): void {
-        itemsList.appendChild(makeRow('item', 'e.g. 2 ¼ cup flour'));
+      // Single source of truth for the simple single-line row types (field name + placeholder),
+      // shared by add mode (click handler) and edit mode (fillForm/fillList) so they can't drift.
+      const SIMPLE_ROWS = {
+        tool: 'e.g. Rolling pin',
+        note: 'A tip or variation…',
+        item: 'e.g. 2 ¼ cup flour',
+      } as const;
+      const makeSimpleRow = (field: keyof typeof SIMPLE_ROWS) => makeRow(field, SIMPLE_ROWS[field]);
+
+      function addItem(itemsList: Element): HTMLElement {
+        const row = makeSimpleRow('item');
+        itemsList.appendChild(row);
+        return row;
       }
       function addGroup(): HTMLElement {
         const group = addRow('#ingredients-list', 'tpl-group');
         addItem(group.querySelector('.items-list')!);
         return group;
+      }
+      // Build a picker <option>; shared by the initial index load and post-add registration.
+      function makeOption(slug: string, title: string): HTMLOptionElement {
+        const opt = document.createElement('option');
+        opt.value = slug;
+        opt.textContent = title;
+        return opt;
       }
 
       // ---- Row add / remove (event delegation) ----------------------------
@@ -259,8 +277,8 @@ const removeBtn =
         const btn = (e.target as HTMLElement).closest('button[data-action]') as HTMLButtonElement | null;
         if (!btn) return;
         switch (btn.dataset.action) {
-          case 'add-tool': $('#tools-list')!.appendChild(makeRow('tool', 'e.g. Rolling pin')); break;
-          case 'add-note': $('#notes-list')!.appendChild(makeRow('note', 'A tip or variation…')); break;
+          case 'add-tool': $('#tools-list')!.appendChild(makeSimpleRow('tool')); break;
+          case 'add-note': $('#notes-list')!.appendChild(makeSimpleRow('note')); break;
           case 'add-step': addRow('#steps-list', 'tpl-step'); break;
           case 'add-group': addGroup(); break;
           case 'add-item': addItem(btn.closest('[data-unit="group"]')!.querySelector('.items-list')!); break;
@@ -529,18 +547,13 @@ const removeBtn =
 
           if (editingSlug) {
             // Stay in edit mode for easy further tweaks; keep the local index + picker label in sync.
-            recipesBySlug[editingSlug] = { ...recipe, slug: editingSlug };
+            recipesBySlug[editingSlug] = recipe;
             const opt = picker.querySelector<HTMLOptionElement>(`option[value="${editingSlug}"]`);
             if (opt) opt.textContent = recipe.title;
           } else {
             // Register the freshly-created recipe so it's immediately pickable without a reload.
-            if (!recipesBySlug[slug]) {
-              const opt = document.createElement('option');
-              opt.value = slug;
-              opt.textContent = recipe.title;
-              picker.appendChild(opt);
-            }
-            recipesBySlug[slug] = { ...recipe, slug };
+            if (!recipesBySlug[slug]) picker.appendChild(makeOption(slug, recipe.title));
+            recipesBySlug[slug] = recipe;
             form.reset();
             resetDynamic();
           }
@@ -605,10 +618,7 @@ const removeBtn =
           const frag = document.createDocumentFragment();
           for (const r of list) {
             recipesBySlug[r.slug] = r;
-            const opt = document.createElement('option');
-            opt.value = r.slug;
-            opt.textContent = r.title;
-            frag.appendChild(opt);
+            frag.appendChild(makeOption(r.slug, r.title));
           }
           picker.appendChild(frag);
           // Deep link: /upload?edit=<slug> jumps straight into editing once data is in.
@@ -621,6 +631,17 @@ const removeBtn =
 
       function setRowValue(row: HTMLElement, field: string, value: string): void {
         row.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`)!.value = value;
+      }
+
+      // Clear a list container and repopulate it with one simple row per value.
+      function fillList(listSel: string, field: keyof typeof SIMPLE_ROWS, values: string[] | undefined): void {
+        const list = $(listSel)!;
+        list.innerHTML = '';
+        for (const v of values ?? []) {
+          const row = makeSimpleRow(field);
+          row.querySelector('input')!.value = v;
+          list.appendChild(row);
+        }
       }
 
       function fillForm(r: Recipe): void {
@@ -638,19 +659,8 @@ const removeBtn =
         $<HTMLInputElement>('#draft')!.checked = !!r.draft;
 
         // Rebuild the dynamic lists from data, reusing the same row builders as add mode.
-        $('#tools-list')!.innerHTML = '';
-        for (const t of r.tools ?? []) {
-          const row = makeRow('tool', 'e.g. Rolling pin');
-          row.querySelector('input')!.value = t;
-          $('#tools-list')!.appendChild(row);
-        }
-
-        $('#notes-list')!.innerHTML = '';
-        for (const n of r.notes ?? []) {
-          const row = makeRow('note', 'A tip or variation…');
-          row.querySelector('input')!.value = n;
-          $('#notes-list')!.appendChild(row);
-        }
+        fillList('#tools-list', 'tool', r.tools);
+        fillList('#notes-list', 'note', r.notes);
 
         $('#steps-list')!.innerHTML = '';
         for (const s of r.steps ?? []) {
@@ -667,11 +677,7 @@ const removeBtn =
           const itemsList = groupEl.querySelector('.items-list')!;
           const items = g.items ?? [];
           if (items.length === 0) addItem(itemsList);
-          for (const it of items) {
-            const row = makeRow('item', 'e.g. 2 ¼ cup flour');
-            row.querySelector('input')!.value = it;
-            itemsList.appendChild(row);
-          }
+          for (const it of items) addItem(itemsList).querySelector('input')!.value = it;
         }
       }
 
