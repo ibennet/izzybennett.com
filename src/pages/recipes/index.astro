@@ -4,6 +4,10 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import RecipeCard from '../../components/RecipeCard.astro';
 import { categoryValues } from '../../content.config';
 
+// Base URL of the recipe API Worker (the OAuth backend). Injected at build time; falls back to
+// the local `wrangler dev` port so `astro dev` works out of the box. Mirrors /upload.
+const RECIPE_API = import.meta.env.PUBLIC_RECIPE_API ?? 'http://localhost:8787';
+
 const recipes = (await getCollection('recipes', ({ data }) => !data.draft)).sort((a, b) =>
   a.data.title.localeCompare(b.data.title)
 );
@@ -16,7 +20,28 @@ const filters = ['', ...categories];
 ---
 
 <BaseLayout title="Recipes" description="An archive of Izzy Bennett's recipes.">
-  <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Recipes</h1>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Recipes</h1>
+
+    <!-- Auth controls. Visibility is CSS-gated off <html data-auth> (see global.css + the session
+         script below): `.auth-when-out` shows signed-out, `.auth-only` shows signed-in. Sign-in
+         kicks off GitHub OAuth on the Worker and returns to /recipes/ (see the return_to param). -->
+    <div class="flex items-center gap-3">
+      <a href={`${RECIPE_API}/login?return_to=/recipes/`}
+        class="auth-when-out rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">
+        Sign in with GitHub
+      </a>
+      <a href="/upload"
+        class="auth-only rounded-lg bg-accent-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-700">
+        + Add new recipe
+      </a>
+      <span class="auth-only text-sm text-green-600 dark:text-green-500">✓ Signed in</span>
+      <button type="button" id="signout-btn" data-api={RECIPE_API}
+        class="auth-only rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">
+        Sign out
+      </button>
+    </div>
+  </div>
   <p class="mt-2 text-neutral-600 dark:text-neutral-400">An archive</p>
 
   <div class="mt-6">
@@ -89,4 +114,18 @@ const filters = ['', ...categories];
       applyFilters();
     });
   }
+</script>
+
+<script>
+  import { ingestSessionFromHash, applyAuthState, signOut } from '../../scripts/recipe-session';
+
+  // The Worker's OAuth return URL for this page is the signed-in Worker base, carried on the
+  // sign-out button's data-api so the module stays free of build-time env injection.
+  const signoutBtn = document.getElementById('signout-btn');
+  signoutBtn?.addEventListener('click', () => signOut(signoutBtn.dataset.api ?? ''));
+
+  // Ingest a just-returned OAuth session, then reflect signed-in state so the CSS reveals the
+  // right controls (sign-in when out; Add / signed-in / sign-out / per-card pencils when in).
+  ingestSessionFromHash();
+  applyAuthState();
 </script>

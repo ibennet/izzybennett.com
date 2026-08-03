@@ -40,6 +40,19 @@ const GH_OAUTH = 'https://github.com/login/oauth';
 const UA = 'izzy-recipe-worker';
 const SLUG_RE = /^[a-z0-9-]+$/;
 
+// Pages sign-in may return to. An allowlist (not raw reflection of `return_to`) keeps the
+// post-OAuth redirect from becoming an open redirect. First entry is the default fallback.
+const RETURN_PATHS = ['/upload', '/recipes/'];
+const DEFAULT_RETURN = RETURN_PATHS[0];
+const safeReturn = (path: string | null): string =>
+  path && RETURN_PATHS.includes(path) ? path : DEFAULT_RETURN;
+
+// The two first-party OAuth cookies in their cleared (Max-Age=0) form. Appended on every callback
+// exit — success or failure — so a half-finished sign-in never leaves them lingering in the browser.
+const CLEAR_AUTH_COOKIES = ['oauth_state', 'oauth_return'].map(
+  (name) => `${name}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`
+);
+
 // Top-level frontmatter keys the /upload form owns and re-serializes on every save. Any OTHER
 // key found in an existing recipe (e.g. `image`) is NOT modelled by the form, so on update we
 // carry it over from the old file — otherwise editing a recipe through /upload would silently
@@ -67,7 +80,7 @@ export default {
         case 'GET /callback':
           // A browser navigation lands here, so surface failures as the friendly HTML page.
           return await handleCallback(request, url, env).catch(() =>
-            htmlError('Something went wrong during sign-in. Please try again.')
+            htmlError('Something went wrong during sign-in. Please try again.', 400, CLEAR_AUTH_COOKIES)
           );
         case 'POST /api/recipe':
           return await withSession(request, env, (_id, s) => putRecipe(request, env, s));
@@ -102,6 +115,7 @@ class ApiError extends Error {
 
 function handleLogin(url: URL, env: Env): Response {
   const state = crypto.randomUUID();
+  const returnTo = safeReturn(url.searchParams.get('return_to'));
   const authorize = new URL(`${GH_OAUTH}/authorize`);
   authorize.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
   authorize.searchParams.set('redirect_uri', `${url.origin}/callback`);
@@ -109,14 +123,13 @@ function handleLogin(url: URL, env: Env): Response {
   authorize.searchParams.set('state', state);
   authorize.searchParams.set('allow_signup', 'false');
 
-  // Stash the state in a short-lived, first-party (worker-origin) cookie to check on callback.
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: authorize.toString(),
-      'Set-Cookie': `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`,
-    },
-  });
+  // Stash the state (checked on callback) and the return path (where to land after) in short-lived,
+  // first-party (worker-origin) cookies. Two Set-Cookie headers, hence a Headers instance.
+  const headers = new Headers({ Location: authorize.toString() });
+  const cookieOpts = 'HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600';
+  headers.append('Set-Cookie', `oauth_state=${state}; ${cookieOpts}`);
+  headers.append('Set-Cookie', `oauth_return=${returnTo}; ${cookieOpts}`);
+  return new Response(null, { status: 302, headers });
 }
 
 // ---- OAuth: callback ------------------------------------------------------
@@ -127,7 +140,7 @@ async function handleCallback(request: Request, url: URL, env: Env): Promise<Res
   const cookieState = readCookie(request, 'oauth_state');
 
   if (!code || !state || !cookieState || state !== cookieState) {
-    return htmlError('Sign-in failed: invalid or expired state. Please try again.');
+    return htmlError('Sign-in failed: invalid or expired state. Please try again.', 400, CLEAR_AUTH_COOKIES);
   }
 
   // Exchange the code for a token — the only place the client secret is used.
@@ -144,7 +157,7 @@ async function handleCallback(request: Request, url: URL, env: Env): Promise<Res
   const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
   const token = tokenData.access_token;
   if (!token) {
-    return htmlError(`Sign-in failed: ${tokenData.error ?? 'no token returned'}.`);
+    return htmlError(`Sign-in failed: ${tokenData.error ?? 'no token returned'}.`, 400, CLEAR_AUTH_COOKIES);
   }
 
   // Identify the user and gate on the allowlist — the OAuth App is public, so anyone could
@@ -154,7 +167,7 @@ async function handleCallback(request: Request, url: URL, env: Env): Promise<Res
   });
   const user = (await userRes.json()) as { login?: string };
   if (!user.login || user.login.toLowerCase() !== env.ALLOWED_LOGIN.toLowerCase()) {
-    return htmlError(`Sorry, @${user.login ?? 'unknown'} is not allowed to edit recipes.`, 403);
+    return htmlError(`Sorry, @${user.login ?? 'unknown'} is not allowed to edit recipes.`, 403, CLEAR_AUTH_COOKIES);
   }
 
   // Mint an opaque session id; the GitHub token stays server-side in KV.
@@ -163,15 +176,14 @@ async function handleCallback(request: Request, url: URL, env: Env): Promise<Res
   const session: Session = { token };
   await env.SESSIONS.put(sessionId, JSON.stringify(session), { expirationTtl: ttl });
 
+  // Return to whichever page started sign-in (re-validated against the allowlist, defensively).
+  const returnTo = safeReturn(readCookie(request, 'oauth_return'));
+
   // Hand the session id back via the URL fragment — fragments aren't sent to servers or logged.
-  // Also clear the state cookie.
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: `${env.SITE_ORIGIN}/upload#session=${sessionId}`,
-      'Set-Cookie': 'oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
-    },
-  });
+  // Also clear both the state and return cookies.
+  const headers = new Headers({ Location: `${env.SITE_ORIGIN}${returnTo}#session=${sessionId}` });
+  for (const cookie of CLEAR_AUTH_COOKIES) headers.append('Set-Cookie', cookie);
+  return new Response(null, { status: 302, headers });
 }
 
 // ---- Session auth wrapper -------------------------------------------------
@@ -379,13 +391,16 @@ function json(env: Env, status: number, data: unknown): Response {
 }
 
 // Minimal HTML page for OAuth redirect errors (the browser lands here directly, not via fetch).
-function htmlError(message: string, status = 400): Response {
+// Optional `cookies` are appended as Set-Cookie headers — callback failures pass CLEAR_AUTH_COOKIES.
+function htmlError(message: string, status = 400, cookies: string[] = []): Response {
   const safe = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' });
+  for (const cookie of cookies) headers.append('Set-Cookie', cookie);
   return new Response(
     `<!doctype html><meta charset="utf-8"><title>Sign-in error</title>` +
       `<body style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem">` +
       `<h1>Sign-in error</h1><p>${safe}</p><p><a href="/login">Try again</a></p></body>`,
-    { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    { status, headers }
   );
 }
 

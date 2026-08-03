@@ -21,7 +21,7 @@ const hasMeta = prepTime !== undefined || cookTime !== undefined || servings !==
 
     <a
       href={`/upload?edit=${recipe.id}`}
-      class="mt-1 inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-accent-600 hover:underline dark:text-neutral-500 dark:hover:text-accent-100"
+      class="auth-only mt-1 inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-accent-600 hover:underline dark:text-neutral-500 dark:hover:text-accent-100"
     >
       ✎ Edit recipe
     </a>
@@ -107,3 +107,11 @@ const hasMeta = prepTime !== undefined || cookTime !== undefined || servings !==
     )}
   </article>
 </BaseLayout>
+
+<script>
+  import { applyAuthState } from '../scripts/recipe-session';
+
+  // Reveal the edit link only when signed in. OAuth never returns to a detail page, so there's no
+  // hash to ingest here — just reflect the stored session onto <html data-auth> and let CSS gate.
+  applyAuthState();
+</script>

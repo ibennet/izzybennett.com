@@ -13,3 +13,13 @@
 body {
   font-family: var(--font-sans);
 }
+
+/* Client-side auth gating. Elements stay hidden until the shared session script stamps
+   <html data-auth="in|out"> (see src/scripts/recipe-session.ts). The `:not()` selectors apply
+   `display: none` only in the non-matching state and never touch `display` in the shown state, so a
+   revealed element keeps its own display (inline-flex, flex, …) with no wrapper needed. Before the
+   script runs neither attribute is set, so both stay hidden — the safe, signed-out view. */
+:root:not([data-auth="in"]) .auth-only,
+:root:not([data-auth="out"]) .auth-when-out {
+  display: none;
+}
