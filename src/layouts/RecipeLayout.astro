@@ -19,6 +19,13 @@ const hasMeta = prepTime !== undefined || cookTime !== undefined || servings !==
 
     <p class="mt-2 text-sm capitalize text-neutral-500 dark:text-neutral-500">{category}</p>
 
+    <a
+      href={`/upload?edit=${recipe.id}`}
+      class="mt-1 inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-accent-600 hover:underline dark:text-neutral-500 dark:hover:text-accent-100"
+    >
+      ✎ Edit recipe
+    </a>
+
     {hasMeta && (
       <dl class="mt-6 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-neutral-50 px-4 py-3 text-sm dark:bg-neutral-900">
         {prepTime !== undefined && (
