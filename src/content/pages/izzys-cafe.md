@@ -5,19 +5,16 @@ title: "Izzy's Cafe"
 ## Menu
 
 #### Drinks
-- Latte
-- Matcha Latte
-- Americano
-- Pourover
+- Coffee
+- Matcha
 
 #### Milks
 - Whole
 - Oat
 
-#### Additions
-- Cardamom syrup
-- Cardamom cold foam
-- Ice
+#### Syrups
+- Cardamom
+- Earl Gray
 
 #### Food
 - Cardamom cookie
