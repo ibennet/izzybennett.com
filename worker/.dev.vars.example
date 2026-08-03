@@ -1,0 +1,3 @@
+# Copy to `.dev.vars` for `wrangler dev` (git-ignored). In production these come from
+# `wrangler secret put` (the secret) and [vars] in wrangler.toml (the rest).
+GITHUB_CLIENT_SECRET="your-oauth-app-client-secret"

@@ -1,10 +1,19 @@
 ---
 // Standalone, unlisted recipe uploader. Not linked from Nav and deliberately does NOT
 // use BaseLayout so it stays out of the site chrome. It builds a schema-valid markdown
-// file client-side and commits it to the repo via the GitHub Contents API, which triggers
-// the normal GitHub Pages deploy. No backend involved.
+// file client-side, then hands it to the recipe API Worker, which — after a GitHub OAuth
+// sign-in — commits it to the repo on your behalf. The GitHub token never reaches the
+// browser; this page only ever holds an opaque session id. Commits trigger the normal
+// GitHub Pages deploy. See /worker for the backend.
 import '../styles/global.css';
 import { categoryValues } from '../content.config';
+
+// Base URL of the recipe API Worker (the OAuth backend + write proxy). Injected at build
+// time; falls back to the local `wrangler dev` port so `astro dev` works out of the box.
+const RECIPE_API = import.meta.env.PUBLIC_RECIPE_API ?? 'http://localhost:8787';
+
+// Canonical site origin (from astro.config `site`), used to build the "it's live at…" link.
+const SITE_ORIGIN = import.meta.env.SITE ?? 'https://izzybennett.com';
 
 // Shared class strings, hoisted so a styling tweak happens in one place instead of ~14.
 const labelCls = 'block text-sm font-medium text-neutral-700 dark:text-neutral-300';
@@ -36,6 +45,20 @@ const removeBtn =
         <a href="/recipes/" class="text-sm text-accent-600 hover:underline dark:text-accent-100">← Recipes</a>
       </header>
       <p id="page-intro" class="mt-1 text-sm text-neutral-500 dark:text-neutral-500">Fill it in, hit publish, and it goes live in a minute or two.</p>
+
+      <!-- Auth bar. Sign-in kicks off GitHub OAuth on the Worker; on return the page holds
+           only an opaque session id (never a GitHub token). -->
+      <div class="mt-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
+        <span id="auth-state" class="text-sm text-neutral-500 dark:text-neutral-400">Checking sign-in…</span>
+        <a id="signin-btn" href={`${RECIPE_API}/login`}
+          class="ml-auto hidden rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200">
+          Sign in with GitHub
+        </a>
+        <button type="button" id="signout-btn"
+          class="ml-auto hidden rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">
+          Sign out
+        </button>
+      </div>
 
       <!-- Pick an existing recipe to edit it, or keep "New recipe" to add a fresh one.
            Populated from /recipes.json on load; selecting one switches the form to edit mode. -->
@@ -133,24 +156,6 @@ const removeBtn =
           <div id="notes-list" class="mt-2 space-y-2"></div>
         </section>
 
-        <!-- Token settings -->
-        <details class="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900">
-          <summary class="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300">GitHub token <span id="token-state" class="ml-1 text-xs font-normal"></span></summary>
-          <div class="mt-3 space-y-2">
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">
-              Create a <strong>fine-grained personal access token</strong> scoped to only the
-              <code>izzybennett.com</code> repo with <strong>Contents: Read &amp; write</strong>, then paste it here.
-              It's stored only on this device (localStorage) and never leaves it except to call GitHub. Revoke anytime in GitHub settings.
-            </p>
-            <div class="flex gap-2">
-              <input id="token" type="password" autocomplete="off" placeholder="github_pat_…"
-                class="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100" />
-              <button type="button" id="save-token" class="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Save</button>
-              <button type="button" id="clear-token" class="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">Clear</button>
-            </div>
-          </div>
-        </details>
-
         <!-- Preview -->
         <details id="preview-details" class="rounded-lg border border-neutral-200 dark:border-neutral-800">
           <summary class="cursor-pointer px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Preview markdown</summary>
@@ -202,49 +207,48 @@ const removeBtn =
       </div>
     </template>
 
-    <script>
-      // ---- Repo constants -------------------------------------------------
-      const OWNER = 'ibennet';
-      const REPO = 'izzybennett.com';
-      const BRANCH = 'master';
-      const RECIPE_DIR = 'src/content/recipes';
-      const TOKEN_KEY = 'izzy-recipe-gh-token';
+    <script define:vars={{ RECIPE_API, SITE_ORIGIN }}>
+      // ---- Config ---------------------------------------------------------
+      // RECIPE_API is injected from the frontmatter above. The browser only ever holds the
+      // opaque session id under SESSION_KEY — never a GitHub token.
+      const API = RECIPE_API;
+      const SESSION_KEY = 'izzy-recipe-session';
 
       // ---- Element helpers ------------------------------------------------
-      const $ = <T extends HTMLElement = HTMLElement>(sel: string) =>
-        document.querySelector(sel) as T | null;
-      const form = $<HTMLFormElement>('#recipe-form')!;
-      const statusEl = $('#status')!;
-      const previewEl = $<HTMLPreElement>('#preview')!;
-      const previewDetails = $<HTMLDetailsElement>('#preview-details')!;
-      const tokenInput = $<HTMLInputElement>('#token')!;
-      const tokenState = $('#token-state')!;
-      const publishBtn = $<HTMLButtonElement>('#publish')!;
-      const pageTitle = $('#page-title')!;
-      const pageIntro = $('#page-intro')!;
-      const picker = $<HTMLSelectElement>('#recipe-picker')!;
-      const deleteBtn = $<HTMLButtonElement>('#delete-recipe')!;
+      const $ = (sel) => document.querySelector(sel);
+      const form = $('#recipe-form');
+      const statusEl = $('#status');
+      const previewEl = $('#preview');
+      const previewDetails = $('#preview-details');
+      const publishBtn = $('#publish');
+      const pageTitle = $('#page-title');
+      const pageIntro = $('#page-intro');
+      const picker = $('#recipe-picker');
+      const deleteBtn = $('#delete-recipe');
+      const authState = $('#auth-state');
+      const signinBtn = $('#signin-btn');
+      const signoutBtn = $('#signout-btn');
 
       // Edit-mode state: the slug of the recipe currently being edited (null = add mode),
       // plus an index of every recipe's data keyed by slug (loaded once from /recipes.json).
-      let editingSlug: string | null = null;
-      const recipesBySlug: Record<string, Recipe> = {};
+      let editingSlug = null;
+      const recipesBySlug = {};
       // True once the user has typed into the form since the last load/save; used to warn
       // before the picker discards unsaved edits. Set only by real user input (not by the
       // programmatic value-setting in fillForm/resetDynamic, which fire no 'input' event).
       let formDirty = false;
 
-      const tpl = (id: string) => document.getElementById(id) as HTMLTemplateElement;
-      function addRow(listSel: string, tplId: string): HTMLElement {
-        const list = $(listSel)!;
-        const node = tpl(tplId).content.firstElementChild!.cloneNode(true) as HTMLElement;
+      const tpl = (id) => document.getElementById(id);
+      function addRow(listSel, tplId) {
+        const list = $(listSel);
+        const node = tpl(tplId).content.firstElementChild.cloneNode(true);
         list.appendChild(node);
         return node;
       }
       // Generic single-line row (tools / notes / ingredient items).
-      function makeRow(field: string, placeholder: string): HTMLElement {
-        const row = tpl('tpl-row').content.firstElementChild!.cloneNode(true) as HTMLElement;
-        const input = row.querySelector('input')!;
+      function makeRow(field, placeholder) {
+        const row = tpl('tpl-row').content.firstElementChild.cloneNode(true);
+        const input = row.querySelector('input');
         input.dataset.field = field;
         input.placeholder = placeholder;
         return row;
@@ -255,37 +259,48 @@ const removeBtn =
         tool: 'e.g. Rolling pin',
         note: 'A tip or variation…',
         item: 'e.g. 2 ¼ cup flour',
-      } as const;
-      const makeSimpleRow = (field: keyof typeof SIMPLE_ROWS) => makeRow(field, SIMPLE_ROWS[field]);
+      };
+      const makeSimpleRow = (field) => makeRow(field, SIMPLE_ROWS[field]);
 
-      function addItem(itemsList: Element): HTMLElement {
+      function addItem(itemsList) {
         const row = makeSimpleRow('item');
         itemsList.appendChild(row);
         return row;
       }
-      function addGroup(): HTMLElement {
+      function addGroup() {
         const group = addRow('#ingredients-list', 'tpl-group');
-        addItem(group.querySelector('.items-list')!);
+        addItem(group.querySelector('.items-list'));
         return group;
       }
       // Build a picker <option>; shared by the initial index load and post-add registration.
-      function makeOption(slug: string, title: string): HTMLOptionElement {
+      function makeOption(slug, title) {
         const opt = document.createElement('option');
         opt.value = slug;
         opt.textContent = title;
         return opt;
       }
 
+      // Reconcile the in-memory index + picker with a just-saved recipe so the UI matches what a
+      // reload would show. Drafts are excluded from /recipes.json, so they're kept out of the
+      // picker (a saved draft would otherwise appear, then vanish on the next load).
+      function syncPickerEntry(slug, recipe) {
+        recipesBySlug[slug] = recipe;
+        const opt = picker.querySelector(`option[value="${slug}"]`);
+        if (recipe.draft) opt?.remove();
+        else if (opt) opt.textContent = recipe.title;
+        else picker.appendChild(makeOption(slug, recipe.title));
+      }
+
       // ---- Row add / remove (event delegation) ----------------------------
       form.addEventListener('click', (e) => {
-        const btn = (e.target as HTMLElement).closest('button[data-action]') as HTMLButtonElement | null;
+        const btn = e.target.closest('button[data-action]');
         if (!btn) return;
         switch (btn.dataset.action) {
-          case 'add-tool': $('#tools-list')!.appendChild(makeSimpleRow('tool')); break;
-          case 'add-note': $('#notes-list')!.appendChild(makeSimpleRow('note')); break;
+          case 'add-tool': $('#tools-list').appendChild(makeSimpleRow('tool')); break;
+          case 'add-note': $('#notes-list').appendChild(makeSimpleRow('note')); break;
           case 'add-step': addRow('#steps-list', 'tpl-step'); break;
           case 'add-group': addGroup(); break;
-          case 'add-item': addItem(btn.closest('[data-unit="group"]')!.querySelector('.items-list')!); break;
+          case 'add-item': addItem(btn.closest('[data-unit="group"]').querySelector('.items-list')); break;
           case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
         }
       });
@@ -294,30 +309,47 @@ const removeBtn =
         refreshPreview();
       });
 
-      // ---- Token storage --------------------------------------------------
-      function renderTokenState() {
-        const has = !!localStorage.getItem(TOKEN_KEY);
-        tokenState.textContent = has ? '✓ saved on this device' : '— not set';
-        tokenState.className = 'ml-1 text-xs font-normal ' + (has ? 'text-green-600 dark:text-green-500' : 'text-neutral-400');
+      // ---- Session / auth -------------------------------------------------
+      const currentSession = () => localStorage.getItem(SESSION_KEY);
+      const clearSession = () => localStorage.removeItem(SESSION_KEY);
+
+      // On return from OAuth the Worker redirects to /upload#session=<id>. Pull it out of the
+      // fragment (fragments never hit a server or log), stash it, then scrub the URL.
+      function ingestSessionFromHash() {
+        const prefix = '#session=';
+        if (location.hash.startsWith(prefix)) {
+          const id = location.hash.slice(prefix.length);
+          if (id) localStorage.setItem(SESSION_KEY, id);
+          history.replaceState(null, '', location.pathname + location.search);
+        }
       }
-      $('#save-token')!.addEventListener('click', () => {
-        const v = tokenInput.value.trim();
-        if (!v) return;
-        localStorage.setItem(TOKEN_KEY, v);
-        tokenInput.value = '';
-        renderTokenState();
-        setStatus('Token saved.', 'ok');
-      });
-      $('#clear-token')!.addEventListener('click', () => {
-        localStorage.removeItem(TOKEN_KEY);
-        renderTokenState();
-        setStatus('Token cleared.', 'ok');
+
+      function renderAuthState() {
+        const signed = !!currentSession();
+        authState.textContent = signed ? '✓ Signed in with GitHub' : 'Not signed in';
+        authState.className =
+          'text-sm ' + (signed ? 'text-green-600 dark:text-green-500' : 'text-neutral-500 dark:text-neutral-400');
+        signinBtn.classList.toggle('hidden', signed);
+        signoutBtn.classList.toggle('hidden', !signed);
+      }
+
+      signoutBtn.addEventListener('click', async () => {
+        const session = currentSession();
+        if (session) {
+          // Best-effort server-side revoke; the local session is cleared regardless.
+          try {
+            await fetch(`${API}/logout`, { method: 'POST', headers: { Authorization: `Bearer ${session}` } });
+          } catch { /* offline is fine — we still drop the local id */ }
+        }
+        clearSession();
+        renderAuthState();
+        setStatus('Signed out.', 'ok');
       });
 
       // ---- Status ---------------------------------------------------------
-      // textContent (not innerHTML) — messages can include GitHub-returned error text,
+      // textContent (not innerHTML) — messages can include server-returned error text,
       // which must never be parsed as markup. Callers that need a link append DOM nodes.
-      function setStatus(msg: string, kind: 'ok' | 'err' | 'info' | '' = '') {
+      function setStatus(msg, kind = '') {
         statusEl.textContent = msg;
         statusEl.className =
           'mt-2 text-sm ' +
@@ -327,33 +359,26 @@ const removeBtn =
       }
 
       // ---- Read form into a recipe object ---------------------------------
-      type Group = { group?: string; items: string[] };
-      type Recipe = {
-        title: string; category: string; description?: string; keywords: string[];
-        prepTime?: number; cookTime?: number; servings?: number;
-        tools: string[]; ingredients: Group[]; steps: string[]; notes: string[]; draft: boolean;
-      };
-
-      const val = (sel: string) => ($<HTMLInputElement>(sel)?.value ?? '').trim();
-      const listVals = (listSel: string, field: string) =>
-        Array.from($(listSel)!.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`))
+      const val = (sel) => ($(sel)?.value ?? '').trim();
+      const listVals = (listSel, field) =>
+        Array.from($(listSel).querySelectorAll(`[data-field="${field}"]`))
           .map((el) => el.value.trim())
           .filter(Boolean);
-      const numOrUndef = (sel: string) => {
+      const numOrUndef = (sel) => {
         const v = val(sel);
         if (v === '') return undefined;
         const n = Number(v);
         return Number.isFinite(n) ? n : undefined;
       };
 
-      function readForm(): Recipe {
-        const ingredients: Group[] = [];
-        for (const groupEl of $('#ingredients-list')!.querySelectorAll<HTMLElement>('[data-unit="group"]')) {
-          const items = Array.from(groupEl.querySelectorAll<HTMLInputElement>('[data-field="item"]'))
+      function readForm() {
+        const ingredients = [];
+        for (const groupEl of $('#ingredients-list').querySelectorAll('[data-unit="group"]')) {
+          const items = Array.from(groupEl.querySelectorAll('[data-field="item"]'))
             .map((el) => el.value.trim())
             .filter(Boolean);
           if (items.length === 0) continue;
-          const name = (groupEl.querySelector<HTMLInputElement>('[data-field="group"]')?.value ?? '').trim();
+          const name = (groupEl.querySelector('[data-field="group"]')?.value ?? '').trim();
           ingredients.push(name ? { group: name, items } : { items });
         }
         return {
@@ -368,7 +393,7 @@ const removeBtn =
           ingredients,
           steps: listVals('#steps-list', 'step'),
           notes: listVals('#notes-list', 'note'),
-          draft: $<HTMLInputElement>('#draft')!.checked,
+          draft: $('#draft').checked,
         };
       }
 
@@ -376,7 +401,7 @@ const removeBtn =
       // Escape order matters: backslashes first, then the chars whose escapes
       // introduce backslashes. Newlines/tabs must be escaped too — a raw newline
       // inside a double-quoted YAML scalar is a "missing closing quote" parse error.
-      const q = (s: string) =>
+      const q = (s) =>
         '"' +
         s
           .replace(/\\/g, '\\\\')
@@ -386,8 +411,8 @@ const removeBtn =
           .replace(/\t/g, '\\t') +
         '"';
 
-      function toMarkdown(r: Recipe): string {
-        const L: string[] = ['---'];
+      function toMarkdown(r) {
+        const L = ['---'];
         L.push(`title: ${q(r.title)}`);
         L.push(`category: ${q(r.category)}`);
         if (r.description) L.push(`description: ${q(r.description)}`);
@@ -420,11 +445,11 @@ const removeBtn =
         return L.join('\n') + '\n';
       }
 
-      function slugify(t: string): string {
+      function slugify(t) {
         return t.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       }
 
-      function validate(r: Recipe): string | null {
+      function validate(r) {
         if (!r.title) return 'Add a title.';
         if (!slugify(r.title)) return 'Title needs at least one letter or number.';
         if (!r.category) return 'Pick a category.';
@@ -432,7 +457,7 @@ const removeBtn =
         if (r.steps.length === 0) return 'Add at least one step.';
         // Mirror the schema's numeric constraints (int + nonnegative/positive) so a
         // stray decimal or out-of-range value is caught here, not by a failed deploy build.
-        const numeric: [string, number | undefined, number][] = [
+        const numeric = [
           ['Prep time', r.prepTime, 0],
           ['Cook time', r.cookTime, 0],
           ['Servings', r.servings, 1],
@@ -458,41 +483,32 @@ const removeBtn =
         if (previewDetails.open) refreshPreview();
       });
 
-      // ---- GitHub API -----------------------------------------------------
-      function b64(str: string): string {
-        const bytes = new TextEncoder().encode(str);
-        let bin = '';
-        for (const byte of bytes) bin += String.fromCharCode(byte);
-        return btoa(bin);
-      }
-      const ghHeaders = (token: string) => ({
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      });
-
-      async function getExistingSha(path: string, token: string): Promise<string | null> {
-        const res = await fetch(
-          `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`,
-          { headers: ghHeaders(token) }
-        );
-        if (res.status === 404) return null;
-        if (!res.ok) throw new Error(await ghError(res));
-        const data = await res.json();
-        return data.sha as string;
+      // ---- Recipe API (via the Worker) ------------------------------------
+      // All writes go through the Worker with the opaque session id as a bearer token; the
+      // Worker injects the real GitHub token server-side.
+      function apiFetch(path, options = {}) {
+        const session = currentSession();
+        return fetch(`${API}${path}`, {
+          ...options,
+          headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+        });
       }
 
-      async function ghError(res: Response): Promise<string> {
-        let detail = '';
-        try { detail = (await res.json()).message ?? ''; } catch { /* noop */ }
-        if (res.status === 401) return 'GitHub rejected the token (401). Check it in the token section.';
-        if (res.status === 403) return `Forbidden (403). Token may lack Contents write on this repo. ${detail}`;
-        if (res.status === 409 || res.status === 422) return `Conflict (${res.status}). ${detail}`;
-        return `GitHub error ${res.status}. ${detail}`;
+      // Extract a human message from a failed API response. A 401 means the session is gone —
+      // clear it and flip the UI back to signed-out so the fix (re-sign-in) is obvious.
+      async function apiError(res) {
+        let msg = '';
+        try { msg = (await res.json()).error ?? ''; } catch { /* noop */ }
+        if (res.status === 401) {
+          clearSession();
+          renderAuthState();
+          return msg || 'Session expired — sign in again.';
+        }
+        return msg || `Server error ${res.status}.`;
       }
 
       // ---- Copy markdown --------------------------------------------------
-      $('#copy-md')!.addEventListener('click', async () => {
+      $('#copy-md').addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(toMarkdown(readForm()));
           setStatus('Markdown copied.', 'ok');
@@ -508,60 +524,64 @@ const removeBtn =
         const problem = validate(recipe);
         if (problem) { setStatus(problem, 'err'); return; }
 
-        const token = localStorage.getItem(TOKEN_KEY);
-        if (!token) {
-          setStatus('No GitHub token saved. Open “GitHub token” above to add one (or use Copy markdown).', 'err');
+        if (!currentSession()) {
+          setStatus('Sign in with GitHub first (top of the page).', 'err');
           return;
         }
 
         // In edit mode the file keeps its original slug even if the title changed, so the
         // URL stays stable and no orphaned file is left behind. Add mode slugifies the title.
         const slug = editingSlug ?? slugify(recipe.title);
-        const path = `${RECIPE_DIR}/${slug}.md`;
         const md = toMarkdown(recipe);
 
         publishBtn.disabled = true;
         deleteBtn.disabled = true;
         try {
-          setStatus(editingSlug ? 'Saving…' : 'Checking for an existing recipe…', 'info');
-          const sha = await getExistingSha(path, token);
-          // Only guard against clobbering in add mode; in edit mode overwriting is the point.
-          if (!editingSlug && sha && !confirm(`A recipe already exists at "${slug}.md". Overwrite it?`)) {
-            setStatus('Cancelled — nothing published.', 'info');
-            return;
+          setStatus(editingSlug ? 'Saving…' : 'Publishing…', 'info');
+          const commit = (overwrite) =>
+            apiFetch('/api/recipe', {
+              method: 'POST',
+              body: JSON.stringify({
+                slug,
+                markdown: md,
+                message: `${overwrite ? 'Update' : 'Add'} recipe: ${recipe.title}`,
+                overwrite,
+              }),
+            });
+
+          // Edit mode always overwrites. Add mode tries create-only first; a 409 means a file
+          // already exists at that slug, so confirm and retry as an overwrite.
+          let res = await commit(!!editingSlug);
+          if (res.status === 409) {
+            if (!confirm(`A recipe already exists at "${slug}.md". Overwrite it?`)) {
+              setStatus('Cancelled — nothing published.', 'info');
+              return;
+            }
+            res = await commit(true);
+          }
+          if (!res.ok) throw new Error(await apiError(res));
+
+          // Keep the picker + index in sync with the save (drops drafts from the picker).
+          syncPickerEntry(slug, recipe);
+
+          if (recipe.draft) {
+            // A draft has no detail page, so don't dangle a "live at…" link it can't fulfill.
+            setStatus(
+              (editingSlug ? 'Saved' : 'Created') +
+                ' as a draft 📝 — hidden from the site and the picker until you un-draft it in the repo.',
+              'ok'
+            );
+          } else {
+            setStatus((editingSlug ? 'Saved! 🎉' : 'Published! 🎉') + " It'll be live in a minute or two at ", 'ok');
+            const link = document.createElement('a');
+            link.href = `${SITE_ORIGIN}/recipes/${slug}/`;
+            link.textContent = link.href;
+            link.className = 'underline';
+            statusEl.appendChild(link);
           }
 
-          setStatus(editingSlug ? 'Saving…' : 'Publishing…', 'info');
-          const body: Record<string, unknown> = {
-            message: `${sha ? 'Update' : 'Add'} recipe: ${recipe.title}`,
-            content: b64(md),
-            branch: BRANCH,
-          };
-          if (sha) body.sha = sha;
-
-          const res = await fetch(
-            `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`,
-            { method: 'PUT', headers: ghHeaders(token), body: JSON.stringify(body) }
-          );
-          if (!res.ok) throw new Error(await ghError(res));
-
-          const url = `https://izzybennett.com/recipes/${slug}/`;
-          setStatus((editingSlug ? 'Saved! 🎉' : 'Published! 🎉') + " It'll be live in a minute or two at ", 'ok');
-          const link = document.createElement('a');
-          link.href = url;
-          link.textContent = url;
-          link.className = 'underline';
-          statusEl.appendChild(link);
-
-          if (editingSlug) {
-            // Stay in edit mode for easy further tweaks; keep the local index + picker label in sync.
-            recipesBySlug[editingSlug] = recipe;
-            const opt = picker.querySelector<HTMLOptionElement>(`option[value="${editingSlug}"]`);
-            if (opt) opt.textContent = recipe.title;
-          } else {
-            // Register the freshly-created recipe so it's immediately pickable without a reload.
-            if (!recipesBySlug[slug]) picker.appendChild(makeOption(slug, recipe.title));
-            recipesBySlug[slug] = recipe;
+          // Add mode: clear the form for the next recipe. Edit mode: stay put for further tweaks.
+          if (!editingSlug) {
             form.reset();
             resetDynamic();
           }
@@ -577,38 +597,31 @@ const removeBtn =
       // ---- Delete ---------------------------------------------------------
       deleteBtn.addEventListener('click', async () => {
         if (!editingSlug) return;
-        const token = localStorage.getItem(TOKEN_KEY);
-        if (!token) {
-          setStatus('No GitHub token saved. Open “GitHub token” above to add one.', 'err');
+        if (!currentSession()) {
+          setStatus('Sign in with GitHub first (top of the page).', 'err');
           return;
         }
         const slug = editingSlug;
         const title = recipesBySlug[slug]?.title ?? slug;
         if (!confirm(`Delete “${title}”? This removes ${slug}.md from the site.`)) return;
 
-        const path = `${RECIPE_DIR}/${slug}.md`;
         deleteBtn.disabled = true;
         publishBtn.disabled = true;
         try {
           setStatus('Deleting…', 'info');
-          const sha = await getExistingSha(path, token);
-          if (!sha) {
+          const res = await apiFetch('/api/recipe', {
+            method: 'DELETE',
+            body: JSON.stringify({ slug, message: `Delete recipe: ${title}` }),
+          });
+          if (res.status === 404) {
             setStatus('That recipe no longer exists on the server.', 'err');
             return;
           }
-          const res = await fetch(
-            `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`,
-            {
-              method: 'DELETE',
-              headers: ghHeaders(token),
-              body: JSON.stringify({ message: `Delete recipe: ${title}`, sha, branch: BRANCH }),
-            }
-          );
-          if (!res.ok) throw new Error(await ghError(res));
+          if (!res.ok) throw new Error(await apiError(res));
 
           // Drop it from the local index + picker, then fall back to a blank add form.
           delete recipesBySlug[slug];
-          picker.querySelector<HTMLOptionElement>(`option[value="${slug}"]`)?.remove();
+          picker.querySelector(`option[value="${slug}"]`)?.remove();
           enterAddMode();
           setStatus(`Deleted “${title}”. The site will update in a minute or two.`, 'ok');
         } catch (err) {
@@ -624,7 +637,7 @@ const removeBtn =
         try {
           const res = await fetch('/recipes.json', { headers: { Accept: 'application/json' } });
           if (!res.ok) return;
-          const list = (await res.json()) as Array<Recipe & { slug: string }>;
+          const list = await res.json();
           const frag = document.createDocumentFragment();
           for (const r of list) {
             recipesBySlug[r.slug] = r;
@@ -639,59 +652,59 @@ const removeBtn =
         }
       }
 
-      function setRowValue(row: HTMLElement, field: string, value: string): void {
-        row.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`)!.value = value;
+      function setRowValue(row, field, value) {
+        row.querySelector(`[data-field="${field}"]`).value = value;
       }
 
       // Clear a list container and repopulate it with one simple row per value.
-      function fillList(listSel: string, field: keyof typeof SIMPLE_ROWS, values: string[] | undefined): void {
-        const list = $(listSel)!;
+      function fillList(listSel, field, values) {
+        const list = $(listSel);
         list.innerHTML = '';
         for (const v of values ?? []) {
           const row = makeSimpleRow(field);
-          row.querySelector('input')!.value = v;
+          row.querySelector('input').value = v;
           list.appendChild(row);
         }
       }
 
-      function fillForm(r: Recipe): void {
-        const setVal = (sel: string, v: string | number | undefined) => {
-          const el = $<HTMLInputElement>(sel);
+      function fillForm(r) {
+        const setVal = (sel, v) => {
+          const el = $(sel);
           if (el) el.value = v === undefined || v === null ? '' : String(v);
         };
         setVal('#title', r.title);
-        $<HTMLSelectElement>('#category')!.value = r.category;
+        $('#category').value = r.category;
         setVal('#description', r.description);
         setVal('#keywords', (r.keywords ?? []).join(', '));
         setVal('#prepTime', r.prepTime);
         setVal('#cookTime', r.cookTime);
         setVal('#servings', r.servings);
-        $<HTMLInputElement>('#draft')!.checked = !!r.draft;
+        $('#draft').checked = !!r.draft;
 
         // Rebuild the dynamic lists from data, reusing the same row builders as add mode.
         fillList('#tools-list', 'tool', r.tools);
         fillList('#notes-list', 'note', r.notes);
 
-        $('#steps-list')!.innerHTML = '';
+        $('#steps-list').innerHTML = '';
         for (const s of r.steps ?? []) {
           const row = addRow('#steps-list', 'tpl-step');
           setRowValue(row, 'step', s);
         }
 
-        $('#ingredients-list')!.innerHTML = '';
+        $('#ingredients-list').innerHTML = '';
         const groups = r.ingredients ?? [];
         if (groups.length === 0) addGroup();
         for (const g of groups) {
           const groupEl = addRow('#ingredients-list', 'tpl-group');
           if (g.group) setRowValue(groupEl, 'group', g.group);
-          const itemsList = groupEl.querySelector('.items-list')!;
+          const itemsList = groupEl.querySelector('.items-list');
           const items = g.items ?? [];
           if (items.length === 0) addItem(itemsList);
-          for (const it of items) addItem(itemsList).querySelector('input')!.value = it;
+          for (const it of items) addItem(itemsList).querySelector('input').value = it;
         }
       }
 
-      function enterEditMode(slug: string): void {
+      function enterEditMode(slug) {
         const r = recipesBySlug[slug];
         if (!r) return;
         editingSlug = slug;
@@ -706,7 +719,7 @@ const removeBtn =
         formDirty = false;
       }
 
-      function enterAddMode(): void {
+      function enterAddMode() {
         editingSlug = null;
         picker.value = '';
         pageTitle.textContent = 'Add a recipe';
@@ -734,15 +747,16 @@ const removeBtn =
 
       // ---- Init -----------------------------------------------------------
       function resetDynamic() {
-        $('#tools-list')!.innerHTML = '';
-        $('#notes-list')!.innerHTML = '';
-        $('#ingredients-list')!.innerHTML = '';
-        $('#steps-list')!.innerHTML = '';
+        $('#tools-list').innerHTML = '';
+        $('#notes-list').innerHTML = '';
+        $('#ingredients-list').innerHTML = '';
+        $('#steps-list').innerHTML = '';
         addGroup();
         addRow('#steps-list', 'tpl-step');
         refreshPreview();
       }
-      renderTokenState();
+      ingestSessionFromHash();
+      renderAuthState();
       resetDynamic();
       loadRecipeIndex();
     </script>
