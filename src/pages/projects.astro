@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import groceriesIcon from '../assets/groceries-icon.jpeg';
+import voicepranksIcon from '../assets/voicepranks-icon.png';
 
 const projects = [
   {
@@ -11,6 +12,14 @@ const projects = [
     description:
       'Android application that allows users to create and collaborate grocery lists with live updates. Currently private.',
     byline: "Created by Izzy Bennett and Tiernan O'Rourke",
+  },
+  {
+    title: 'Voice Pranks',
+    image: voicepranksIcon,
+    url: 'https://github.com/ibennet/voicepranks',
+    description:
+      'Real-time "Minion voice" microphone filter for macOS and Windows, written in pure Python. Pitch-shifts your mic and routes it to a virtual audio device so apps like Discord, Zoom, or OBS pick it up as their input.',
+    byline: 'Created by Izzy Bennett',
   },
 ];
 ---
