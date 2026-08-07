@@ -27,6 +27,7 @@ export interface Env {
   REPO: string;
   BRANCH: string;
   RECIPE_DIR: string;
+  DENSITIES_PATH: string;
   SITE_ORIGIN: string;
   SESSION_TTL: string;
 }
@@ -325,6 +326,7 @@ async function putRecipe(request: Request, env: Env, session: Session): Promise<
     markdown?: string;
     message?: string;
     overwrite?: boolean;
+    densities?: Record<string, unknown>;
   };
   const path = recipePath(env, body.slug);
   if (!path) return json(env, 400, { error: 'Invalid recipe slug.' });
@@ -348,7 +350,69 @@ async function putRecipe(request: Request, env: Env, session: Session): Promise<
   if (existing) payload.sha = existing.sha;
 
   await commit(env, session.token, 'PUT', path, payload, 'commit');
-  return json(env, 200, { ok: true, created: !existing });
+
+  // Best-effort: fold any new ingredient → grams-per-cup ratios into the shared list, as a
+  // second commit. This must never fail the recipe save, so errors are swallowed and reported
+  // back as densitiesSaved:false — the uploader keeps the ratios and offers to retry.
+  let densitiesSaved: boolean | undefined;
+  if (body.densities && typeof body.densities === 'object') {
+    densitiesSaved = await saveDensities(env, session.token, body.densities).catch(() => false);
+  }
+
+  return json(env, 200, { ok: true, created: !existing, ...(densitiesSaved !== undefined && { densitiesSaved }) });
+}
+
+// Merge client-supplied ingredient ratios into DENSITIES_PATH and commit if anything changed.
+// The list is a flat JSON map of name (lowercased) → grams per US cup. Returns true if the file
+// is up to date afterwards (including the no-change case), false if the commit couldn't happen.
+async function saveDensities(env: Env, token: string, upserts: Record<string, unknown>): Promise<boolean> {
+  const path = env.DENSITIES_PATH;
+  if (!path) return false;
+
+  // Sanitise: only accept non-empty names mapping to positive finite numbers.
+  const clean: Record<string, number> = {};
+  for (const [key, value] of Object.entries(upserts)) {
+    const name = String(key).trim().toLowerCase();
+    const num = Number(value);
+    if (name && Number.isFinite(num) && num > 0) clean[name] = Math.round(num * 100) / 100;
+  }
+  if (Object.keys(clean).length === 0) return true;
+
+  const existing = await getExisting(env, token, path);
+  let current: Record<string, number> = {};
+  if (existing?.content) {
+    try {
+      const parsed = JSON.parse(existing.content);
+      if (parsed && typeof parsed === 'object') current = parsed as Record<string, number>;
+    } catch {
+      /* unreadable list — start from the upserts rather than clobbering blindly is riskier,
+         so bail out and let it be reported as not-saved */
+      return false;
+    }
+  }
+
+  // Update existing entries in place and append new ones; preserving the file's existing key
+  // order (rather than re-sorting) keeps the committed diff to just the lines that changed.
+  let changed = false;
+  for (const [name, ratio] of Object.entries(clean)) {
+    if (current[name] !== ratio) {
+      current[name] = ratio;
+      changed = true;
+    }
+  }
+  if (!changed) return true;
+
+  const content = `${JSON.stringify(current, null, 2)}\n`;
+
+  const payload: Record<string, unknown> = {
+    message: 'Update ingredient densities',
+    content: b64(content),
+    branch: env.BRANCH,
+  };
+  if (existing) payload.sha = existing.sha;
+
+  await commit(env, token, 'PUT', path, payload, 'densities commit');
+  return true;
 }
 
 async function deleteRecipe(request: Request, env: Env, session: Session): Promise<Response> {

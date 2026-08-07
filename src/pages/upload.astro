@@ -7,6 +7,10 @@
 // GitHub Pages deploy. See /worker for the backend.
 import '../styles/global.css';
 import { categoryValues } from '../content.config';
+// Unit tables shared with the recipe pages. UNIT_OPTIONS fills the item unit <select>; the
+// numeric tables are handed to the inline script (via define:vars) so its grams math uses the
+// exact same factors — see the compact re-implementations of normUnit/parseQty there.
+import { UNIT_OPTIONS, VOLUME_IN_CUPS, WEIGHT_IN_GRAMS, UNIT_ALIASES, UNICODE_FRACTIONS } from '../lib/units';
 
 // Base URL of the recipe API Worker (the OAuth backend + write proxy). Injected at build
 // time; falls back to the local `wrangler dev` port so `astro dev` works out of the box.
@@ -21,6 +25,9 @@ const fieldInput =
   'mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 const rowInput =
   'min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+// Narrow, non-flexing variant of rowInput for the qty box and unit <select> in an ingredient row.
+const cellInput =
+  'rounded-lg border border-neutral-300 bg-white px-2 py-2 text-neutral-900 placeholder:text-neutral-400 focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 const sectionHeading = 'text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500';
 const addBtn =
   'rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900';
@@ -217,6 +224,30 @@ const dragHandle =
       </div>
     </template>
 
+    <!-- One ingredient: qty + unit + name, with a grams prompt that appears when the unit is a
+         volume the ingredient's density isn't known for yet (see updateItemRow). -->
+    <template id="tpl-item">
+      <div data-unit="item-row" class="space-y-1.5">
+        <div class="flex items-center gap-2">
+          <span data-drag-handle draggable="true" aria-label="Drag to reorder" class={dragHandle}>⠿</span>
+          <input type="text" data-field="item-qty" inputmode="text" placeholder="2 ¼" autocomplete="off" aria-label="Quantity" class={`${cellInput} w-16 shrink-0 text-center`} />
+          <select data-field="item-unit" aria-label="Unit" class={`${cellInput} w-24 shrink-0`}>
+            <option value="">—</option>
+            {UNIT_OPTIONS.map((u) => <option value={u}>{u}</option>)}
+          </select>
+          <input type="text" data-field="item-name" placeholder="flour" autocomplete="off" aria-label="Ingredient" class={rowInput} />
+          <button type="button" data-action="remove" aria-label="Remove" class={removeBtn}>✕</button>
+        </div>
+        <div data-grams-prompt class="ml-8 hidden rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <label class="flex flex-wrap items-center gap-1.5">
+            <span>New ingredient — how many grams is <span data-grams-qty></span> <span data-grams-unit></span> of “<span data-grams-name></span>”?</span>
+            <input type="number" min="0" step="any" inputmode="decimal" data-field="item-grams" placeholder="grams" aria-label="Grams" class={`${cellInput} w-24`} />
+          </label>
+          <span class="mt-0.5 block text-amber-600 dark:text-amber-300/70">Saved to the shared list so future recipes convert it automatically.</span>
+        </div>
+      </div>
+    </template>
+
     <template id="tpl-step-group">
       <div data-unit="step-group" class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
         <div class="flex items-center gap-2">
@@ -229,7 +260,7 @@ const dragHandle =
       </div>
     </template>
 
-    <script define:vars={{ RECIPE_API, SITE_ORIGIN }}>
+    <script define:vars={{ RECIPE_API, SITE_ORIGIN, VOLUME_IN_CUPS, WEIGHT_IN_GRAMS, UNIT_ALIASES, UNICODE_FRACTIONS }}>
       // ---- Config ---------------------------------------------------------
       // RECIPE_API is injected from the frontmatter above. The browser only ever holds the
       // opaque session id under SESSION_KEY — never a GitHub token.
@@ -237,8 +268,43 @@ const dragHandle =
       const SESSION_KEY = 'izzy-recipe-session';
       // Unsaved form content is autosaved here so it survives a full-page reload — most
       // importantly the GitHub OAuth round-trip, which navigates away and back. Holds
-      // { editingSlug, recipe } where recipe is a readForm() snapshot.
+      // { editingSlug, recipe, pendingDensities } where recipe is a readForm() snapshot.
       const DRAFT_KEY = 'izzy-recipe-draft';
+
+      // ---- Ingredient unit conversion (grams) -----------------------------
+      // knownDensities: ingredient name (lowercased) → grams-per-cup, loaded from /densities.json
+      // (what the shared list already knows). pendingDensities: ratios the user supplies this
+      // session for ingredients not yet in the list — sent to the Worker on publish to grow it.
+      const knownDensities = {};
+      const pendingDensities = {};
+      const clearPending = () => { for (const k of Object.keys(pendingDensities)) delete pendingDensities[k]; };
+
+      // Compact re-implementations of src/lib/units.ts, using the tables injected via define:vars
+      // above (so the numbers never drift). define:vars can't cross functions, only data.
+      const normUnit = (u) => { if (!u) return ''; const k = String(u).toLowerCase().trim().replace(/\.$/, ''); return UNIT_ALIASES[k] ?? k; };
+      const isVolumeUnit = (u) => normUnit(u) in VOLUME_IN_CUPS;
+      function parseQty(qty) {
+        if (qty == null) return null;
+        const s = String(qty).trim();
+        if (!s || /[-–—]/.test(s) || /\bto\b/i.test(s)) return null;
+        let total = 0, matched = false;
+        for (const ch of s) { if (ch in UNICODE_FRACTIONS) { total += UNICODE_FRACTIONS[ch]; matched = true; } }
+        const rest = s.replace(/[¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/g, ' ').trim();
+        if (rest) {
+          const mixed = rest.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+          const frac = rest.match(/^(\d+)\s*\/\s*(\d+)$/);
+          if (mixed) { total += Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]); matched = true; }
+          else if (frac) { total += Number(frac[1]) / Number(frac[2]); matched = true; }
+          else { const n = Number(rest); if (!Number.isFinite(n)) return null; total += n; matched = true; }
+        }
+        return matched ? total : null;
+      }
+      function densityFromGrams(qty, unit, grams) {
+        const cups = VOLUME_IN_CUPS[normUnit(unit)];
+        const n = parseQty(qty);
+        if (cups == null || n == null || n <= 0 || !(grams > 0)) return null;
+        return grams / (n * cups);
+      }
 
       // ---- Element helpers ------------------------------------------------
       const $ = (sel) => document.querySelector(sel);
@@ -288,18 +354,59 @@ const dragHandle =
       const SIMPLE_ROWS = {
         tool: 'e.g. Rolling pin',
         note: 'A tip or variation…',
-        item: 'e.g. 2 ¼ cup flour',
       };
       const makeSimpleRow = (field) => makeRow(field, SIMPLE_ROWS[field]);
 
+      // Stamp a structured ingredient row (qty / unit / name + grams prompt) from tpl-item.
+      const makeItemRow = () => tpl('tpl-item').content.firstElementChild.cloneNode(true);
+
       // The item builders take an optional value so add mode (no value) and edit-mode
-      // rehydration (value from data) share the one call — see fillGroups.
+      // rehydration (value from data) share the one call — see fillGroups. `value` is a
+      // { name, qty?, unit? } object (a bare string is tolerated as the name, defensively).
       function addItem(itemsList, value) {
-        const row = makeSimpleRow('item');
+        const row = makeItemRow();
         itemsList.appendChild(row);
-        if (value != null) row.querySelector('input').value = value;
+        if (value != null) {
+          const set = (field, v) => { if (v != null) row.querySelector(`[data-field="${field}"]`).value = v; };
+          if (typeof value === 'string') set('item-name', value);
+          else { set('item-name', value.name); set('item-qty', value.qty); set('item-unit', value.unit); }
+          updateItemRow(row);
+        }
         return row;
       }
+
+      // Show/hide a row's grams prompt and, when grams are entered, capture the derived ratio.
+      // "Needs grams" = a volume unit with a parseable qty and a name the shared list doesn't
+      // know yet. Weight units convert without a ratio; count/no-unit items never convert.
+      function updateItemRow(row) {
+        const nameEl = row.querySelector('[data-field="item-name"]');
+        const qtyEl = row.querySelector('[data-field="item-qty"]');
+        const unitEl = row.querySelector('[data-field="item-unit"]');
+        const gramsEl = row.querySelector('[data-field="item-grams"]');
+        const prompt = row.querySelector('[data-grams-prompt]');
+        const name = (nameEl.value ?? '').trim();
+        const nameKey = name.toLowerCase();
+        const unit = unitEl.value;
+        const qtyNum = parseQty(qtyEl.value);
+
+        const needs = isVolumeUnit(unit) && !!name && qtyNum != null && qtyNum > 0 && !(nameKey in knownDensities);
+        prompt.classList.toggle('hidden', !needs);
+        if (needs) {
+          row.querySelector('[data-grams-qty]').textContent = qtyEl.value.trim();
+          row.querySelector('[data-grams-unit]').textContent = unit;
+          row.querySelector('[data-grams-name]').textContent = name;
+          const grams = Number(gramsEl.value);
+          if (gramsEl.value.trim() && Number.isFinite(grams)) {
+            const d = densityFromGrams(qtyEl.value, unit, grams);
+            if (d != null) pendingDensities[nameKey] = Math.round(d * 100) / 100;
+          }
+        }
+      }
+
+      // Re-evaluate every ingredient row's prompt (e.g. after /densities.json finishes loading,
+      // which can arrive after the form is already populated from a draft or an edit).
+      const refreshAllItemRows = () =>
+        $('#ingredients-list').querySelectorAll('[data-unit="item-row"]').forEach(updateItemRow);
       function addGroup() {
         const group = addRow('#ingredients-list', 'tpl-group');
         addItem(group.querySelector('.items-list'));
@@ -351,11 +458,19 @@ const dragHandle =
         // Row add/remove changes the form's content but fires no 'input' event, so persist here.
         saveDraftSoon();
       });
-      form.addEventListener('input', () => {
+      // Re-evaluate a row's grams prompt whenever its qty/unit/name/grams changes.
+      const maybeUpdateItemRow = (target) => {
+        const row = target?.closest?.('[data-unit="item-row"]');
+        if (row) updateItemRow(row);
+      };
+      form.addEventListener('input', (e) => {
+        maybeUpdateItemRow(e.target);
         formDirty = true;
         refreshPreview();
         saveDraftSoon();
       });
+      // <select> reliably fires 'change' (and 'input' in modern browsers); cover both.
+      form.addEventListener('change', (e) => maybeUpdateItemRow(e.target));
 
       // ---- Drag-to-reorder (native HTML5, no library) ---------------------
       // Only the grip (data-drag-handle) is draggable, so text inputs stay editable. A drag
@@ -469,6 +584,31 @@ const dragHandle =
         }
         return out;
       }
+
+      // Ingredients-only reader: each item is a { name, qty?, unit? } object, so it can't use the
+      // string-item readGroups above. Rows with no name are dropped; empty groups are dropped.
+      // Note: the grams field (item-grams) is deliberately NOT read — grams live in the shared
+      // density list (pendingDensities), never in the recipe frontmatter.
+      function readIngredientGroups() {
+        const out = [];
+        for (const groupEl of $('#ingredients-list').querySelectorAll('[data-unit="group"]')) {
+          const items = [];
+          for (const rowEl of groupEl.querySelectorAll('[data-unit="item-row"]')) {
+            const name = (rowEl.querySelector('[data-field="item-name"]')?.value ?? '').trim();
+            if (!name) continue;
+            const qty = (rowEl.querySelector('[data-field="item-qty"]')?.value ?? '').trim();
+            const unit = (rowEl.querySelector('[data-field="item-unit"]')?.value ?? '').trim();
+            const item = { name };
+            if (qty) item.qty = qty;
+            if (unit) item.unit = unit;
+            items.push(item);
+          }
+          if (items.length === 0) continue;
+          const groupName = (groupEl.querySelector('[data-field="group"]')?.value ?? '').trim();
+          out.push(groupName ? { group: groupName, items } : { items });
+        }
+        return out;
+      }
       const numOrUndef = (sel) => {
         const v = val(sel);
         if (v === '') return undefined;
@@ -486,7 +626,7 @@ const dragHandle =
           cookTime: numOrUndef('#cookTime'),
           servings: numOrUndef('#servings'),
           tools: listVals('#tools-list', 'tool'),
-          ingredients: readGroups('#ingredients-list', 'group', 'item'),
+          ingredients: readIngredientGroups(),
           steps: readGroups('#steps-list', 'step-group', 'step'),
           notes: listVals('#notes-list', 'note'),
           draft: $('#draft').checked,
@@ -526,7 +666,7 @@ const dragHandle =
         const recipe = readForm();
         if (!hasContent(recipe)) { clearDraft(); return; }
         try {
-          localStorage.setItem(DRAFT_KEY, JSON.stringify({ editingSlug, recipe }));
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({ editingSlug, recipe, pendingDensities }));
         } catch { /* quota/private mode — a lost autosave is non-fatal */ }
       }
 
@@ -569,6 +709,21 @@ const dragHandle =
         }
       }
 
+      // Ingredients variant: each item is a { name, qty?, unit? } object. Mirrors the block shape
+      // produced by the one-time content migration, so re-saving a recipe stays a clean diff.
+      function serializeIngredients(L, groups) {
+        L.push('ingredients:');
+        for (const g of groups) {
+          if (g.group) { L.push(`  - group: ${q(g.group)}`); L.push('    items:'); }
+          else { L.push('  - items:'); }
+          for (const it of g.items) {
+            L.push(`      - name: ${q(it.name)}`);
+            if (it.qty) L.push(`        qty: ${q(it.qty)}`);
+            if (it.unit) L.push(`        unit: ${q(it.unit)}`);
+          }
+        }
+      }
+
       function toMarkdown(r) {
         const L = ['---'];
         L.push(`title: ${q(r.title)}`);
@@ -582,7 +737,7 @@ const dragHandle =
           L.push('tools:');
           for (const t of r.tools) L.push(`  - ${q(t)}`);
         }
-        serializeGroups(L, 'ingredients', r.ingredients);
+        serializeIngredients(L, r.ingredients);
         serializeGroups(L, 'steps', r.steps);
         if (r.notes.length) {
           L.push('notes:');
@@ -686,6 +841,8 @@ const dragHandle =
         deleteBtn.disabled = true;
         try {
           setStatus(editingSlug ? 'Saving…' : 'Publishing…', 'info');
+          // Any new grams ratios the user supplied ride along so the Worker can grow the shared list.
+          const densities = Object.keys(pendingDensities).length ? pendingDensities : undefined;
           const commit = (overwrite) =>
             apiFetch('/api/recipe', {
               method: 'POST',
@@ -694,6 +851,7 @@ const dragHandle =
                 markdown: md,
                 message: `${overwrite ? 'Update' : 'Add'} recipe: ${recipe.title}`,
                 overwrite,
+                densities,
               }),
             });
 
@@ -708,6 +866,7 @@ const dragHandle =
             res = await commit(true);
           }
           if (!res.ok) throw new Error(await apiError(res));
+          const result = await res.json().catch(() => ({}));
 
           // Keep the picker + index in sync with the save (drops drafts from the picker).
           syncPickerEntry(slug, recipe);
@@ -730,6 +889,18 @@ const dragHandle =
 
           // The work is safely committed, so drop the autosaved draft (add and edit mode alike).
           clearDraft();
+
+          // New grams ratios are committed best-effort alongside the recipe. On success, fold them
+          // into what this session "knows" (so rows stop prompting); on failure, keep them and warn.
+          if (Object.keys(pendingDensities).length) {
+            if (result.densitiesSaved === false) {
+              setStatus('Recipe saved — but the new gram conversions didn’t save. Re-publish to retry them.', 'err');
+            } else {
+              Object.assign(knownDensities, pendingDensities);
+              clearPending();
+              refreshAllItemRows();
+            }
+          }
 
           // Add mode: clear the form for the next recipe. Edit mode: stay put for further tweaks.
           if (!editingSlug) {
@@ -782,6 +953,16 @@ const dragHandle =
           publishBtn.disabled = false;
         }
       });
+
+      // Load the shared ingredient → grams-per-cup list so rows only prompt for grams on
+      // ingredients it doesn't already know. Arrives async, so re-run every row's prompt after.
+      async function loadDensities() {
+        try {
+          const res = await fetch('/densities.json', { headers: { Accept: 'application/json' } });
+          if (res.ok) Object.assign(knownDensities, await res.json());
+        } catch { /* the prompt just errs toward asking — non-fatal */ }
+        refreshAllItemRows();
+      }
 
       // ---- Edit mode: load existing recipes & prefill ---------------------
       async function loadRecipeIndex() {
@@ -881,6 +1062,7 @@ const dragHandle =
       function enterEditMode(slug) {
         const r = recipesBySlug[slug];
         if (!r) return;
+        clearPending(); // fresh recipe context — drop any half-entered ratios from the last one
         editingSlug = slug;
         picker.value = slug;
         fillForm(r);
@@ -891,6 +1073,7 @@ const dragHandle =
       }
 
       function enterAddMode() {
+        clearPending();
         editingSlug = null;
         picker.value = '';
         setAddChrome();
@@ -920,6 +1103,10 @@ const dragHandle =
         try { saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { saved = null; }
         if (!saved || !saved.recipe || !hasContent(saved.recipe)) return;
 
+        // Restore any grams ratios entered before the OAuth round-trip so they still publish.
+        if (saved.pendingDensities && typeof saved.pendingDensities === 'object') {
+          Object.assign(pendingDensities, saved.pendingDensities);
+        }
         fillForm(saved.recipe);
         if (saved.editingSlug) {
           // The recipe index isn't loaded yet, so apply edit-mode chrome directly instead of
@@ -957,6 +1144,7 @@ const dragHandle =
       renderAuthState();
       resetDynamic();
       restoreDraft();
+      loadDensities();
       loadRecipeIndex();
     </script>
   </body>

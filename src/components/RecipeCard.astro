@@ -15,7 +15,10 @@ const searchText = [
   category,
   ...keywords,
   ...tools,
-  ...ingredients.flatMap((group) => [group.group ?? '', ...group.items]),
+  ...ingredients.flatMap((group) => [
+    group.group ?? '',
+    ...group.items.map((item) => [item.qty, item.unit, item.name].filter(Boolean).join(' ')),
+  ]),
   ...steps.flatMap((group) => [group.group ?? '', ...group.items]),
 ]
   .join(' ')
