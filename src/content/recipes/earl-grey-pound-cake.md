@@ -39,5 +39,6 @@ ingredients:
       - "1/2 tsp lavender extract"
       - "2 tbsp (30ml) heavy cream"
 steps:
-  - "step 1"
+  - items:
+      - "step 1"
 ---
