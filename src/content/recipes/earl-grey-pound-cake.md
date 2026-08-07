@@ -78,6 +78,24 @@ ingredients:
         qty: "2"
         unit: "tbsp"
 steps:
-  - items:
-      - "step 1"
+  - group: "Loaf"
+    items:
+      - "Preheat oven to **350º F**."
+      - "Bloom the **earl grey tea leaves** by adding **2tbsp (30ml) boiling water**."
+      - "In a **separate bowl**, mix the **dry ingredients** together."
+      - "In the **stand mixer**, beat the **butter**, **oil**, and **sugar** until fluffy."
+      - "Add in the **eggs** one at a time to the stand mixer."
+      - "Mix in the **yogurt**, **buttermilk**, **vanilla**, and **lavender** to the stand mixer."
+      - "Slowly mix in the **dry ingredients** until just combined."
+      - "Divide the batter in two."
+      - "In one of the batters, mix in the **early grey** and **vanilla**."
+      - "Layer the batters into a pan lined with parchment paper or a pan greased and dusted with butter."
+      - "Bake for **one hour**. Time may vary. The loaf is done when it's golden and a toothpick comes out clean."
+      - "Let cool completely before adding buttercream."
+  - group: "Buttercream"
+    items:
+      - "Beat the **butter** until fluffy. **2-3 minutes**."
+      - "On a low speed, add in the **powdered sugar**."
+      - "Mix in the **vanilla**, **lavender**, and **heavy cream**."
+      - "Whip on medium-high until light and airy."
 ---
