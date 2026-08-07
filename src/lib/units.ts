@@ -120,14 +120,6 @@ export function parseQty(qty: string | number | undefined | null): number | null
   return matched ? total : null;
 }
 
-export function isVolumeUnit(unit: string | undefined | null): boolean {
-  return normalizeUnit(unit) in VOLUME_IN_CUPS;
-}
-
-export function isWeightUnit(unit: string | undefined | null): boolean {
-  return normalizeUnit(unit) in WEIGHT_IN_GRAMS;
-}
-
 /**
  * Convert (qty, unit, name) to grams, or null if it can't be converted:
  *   - weight unit  → qty × fixed factor (density irrelevant);
@@ -177,4 +169,9 @@ export function densityFromGrams(
 export function formatGrams(grams: number): string {
   const rounded = grams >= 10 ? Math.round(grams) : Math.round(grams * 10) / 10;
   return `${rounded} g`;
+}
+
+/** The US-facing "qty unit name" label for a structured ingredient, e.g. "2 ¼ cup flour". */
+export function ingredientLabel(item: { name: string; qty?: string; unit?: string }): string {
+  return [item.qty, item.unit, item.name].filter(Boolean).join(' ');
 }

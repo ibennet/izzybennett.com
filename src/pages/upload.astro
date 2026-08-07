@@ -570,44 +570,40 @@ const dragHandle =
           .map((el) => el.value.trim())
           .filter(Boolean);
       // Read a grouped list into [{group?, items}], dropping empty groups. A blank group name
-      // yields no `group` key (renders as a plain list). Shared by ingredients and steps, which
-      // have the identical shape; `group` names both the [data-unit] box and its [data-field].
-      function readGroups(listSel, group, itemField) {
+      // yields no `group` key (renders as a plain list). `groupUnit` names both the [data-unit]
+      // box and its group-name [data-field]; `collectItems(groupEl)` returns that group's items —
+      // the one bit that differs between steps (strings) and ingredients (objects).
+      function readGroups(listSel, groupUnit, collectItems) {
         const out = [];
-        for (const groupEl of $(listSel).querySelectorAll(`[data-unit="${group}"]`)) {
-          const items = Array.from(groupEl.querySelectorAll(`[data-field="${itemField}"]`))
-            .map((el) => el.value.trim())
-            .filter(Boolean);
+        for (const groupEl of $(listSel).querySelectorAll(`[data-unit="${groupUnit}"]`)) {
+          const items = collectItems(groupEl);
           if (items.length === 0) continue;
-          const name = (groupEl.querySelector(`[data-field="${group}"]`)?.value ?? '').trim();
+          const name = (groupEl.querySelector(`[data-field="${groupUnit}"]`)?.value ?? '').trim();
           out.push(name ? { group: name, items } : { items });
         }
         return out;
       }
 
-      // Ingredients-only reader: each item is a { name, qty?, unit? } object, so it can't use the
-      // string-item readGroups above. Rows with no name are dropped; empty groups are dropped.
-      // Note: the grams field (item-grams) is deliberately NOT read — grams live in the shared
-      // density list (pendingDensities), never in the recipe frontmatter.
-      function readIngredientGroups() {
-        const out = [];
-        for (const groupEl of $('#ingredients-list').querySelectorAll('[data-unit="group"]')) {
-          const items = [];
-          for (const rowEl of groupEl.querySelectorAll('[data-unit="item-row"]')) {
-            const name = (rowEl.querySelector('[data-field="item-name"]')?.value ?? '').trim();
-            if (!name) continue;
-            const qty = (rowEl.querySelector('[data-field="item-qty"]')?.value ?? '').trim();
-            const unit = (rowEl.querySelector('[data-field="item-unit"]')?.value ?? '').trim();
-            const item = { name };
-            if (qty) item.qty = qty;
-            if (unit) item.unit = unit;
-            items.push(item);
-          }
-          if (items.length === 0) continue;
-          const groupName = (groupEl.querySelector('[data-field="group"]')?.value ?? '').trim();
-          out.push(groupName ? { group: groupName, items } : { items });
+      // Item collectors for readGroups. Steps are trimmed strings from one field; ingredients are
+      // { name, qty?, unit? } objects read per row (nameless rows dropped). The grams field is
+      // deliberately NOT read — grams live in the shared density list, never in the frontmatter.
+      const collectStringItems = (itemField) => (groupEl) =>
+        Array.from(groupEl.querySelectorAll(`[data-field="${itemField}"]`))
+          .map((el) => el.value.trim())
+          .filter(Boolean);
+      function collectIngredientItems(groupEl) {
+        const items = [];
+        for (const rowEl of groupEl.querySelectorAll('[data-unit="item-row"]')) {
+          const name = (rowEl.querySelector('[data-field="item-name"]')?.value ?? '').trim();
+          if (!name) continue;
+          const qty = (rowEl.querySelector('[data-field="item-qty"]')?.value ?? '').trim();
+          const unit = (rowEl.querySelector('[data-field="item-unit"]')?.value ?? '').trim();
+          const item = { name };
+          if (qty) item.qty = qty;
+          if (unit) item.unit = unit;
+          items.push(item);
         }
-        return out;
+        return items;
       }
       const numOrUndef = (sel) => {
         const v = val(sel);
@@ -626,8 +622,8 @@ const dragHandle =
           cookTime: numOrUndef('#cookTime'),
           servings: numOrUndef('#servings'),
           tools: listVals('#tools-list', 'tool'),
-          ingredients: readIngredientGroups(),
-          steps: readGroups('#steps-list', 'step-group', 'step'),
+          ingredients: readGroups('#ingredients-list', 'group', collectIngredientItems),
+          steps: readGroups('#steps-list', 'step-group', collectStringItems('step')),
           notes: listVals('#notes-list', 'note'),
           draft: $('#draft').checked,
         };
@@ -695,8 +691,11 @@ const dragHandle =
           .replace(/\t/g, '\\t') +
         '"';
 
-      // Serialize [{group?, items}] as YAML under `key:` — the shared ingredient/step shape.
-      function serializeGroups(L, key, groups) {
+      // Serialize [{group?, items}] as YAML under `key:` — the shared ingredient/step envelope.
+      // `serializeItem(L, it)` emits one item's line(s): a bare string for steps, or the
+      // name/qty/unit block for ingredients (which mirrors the one-time content migration, so
+      // re-saving a recipe stays a clean diff).
+      function serializeGroups(L, key, groups, serializeItem) {
         L.push(`${key}:`);
         for (const g of groups) {
           if (g.group) {
@@ -705,23 +704,14 @@ const dragHandle =
           } else {
             L.push('  - items:');
           }
-          for (const it of g.items) L.push(`      - ${q(it)}`);
+          for (const it of g.items) serializeItem(L, it);
         }
       }
-
-      // Ingredients variant: each item is a { name, qty?, unit? } object. Mirrors the block shape
-      // produced by the one-time content migration, so re-saving a recipe stays a clean diff.
-      function serializeIngredients(L, groups) {
-        L.push('ingredients:');
-        for (const g of groups) {
-          if (g.group) { L.push(`  - group: ${q(g.group)}`); L.push('    items:'); }
-          else { L.push('  - items:'); }
-          for (const it of g.items) {
-            L.push(`      - name: ${q(it.name)}`);
-            if (it.qty) L.push(`        qty: ${q(it.qty)}`);
-            if (it.unit) L.push(`        unit: ${q(it.unit)}`);
-          }
-        }
+      const serializeStringItem = (L, it) => L.push(`      - ${q(it)}`);
+      function serializeIngredientItem(L, it) {
+        L.push(`      - name: ${q(it.name)}`);
+        if (it.qty) L.push(`        qty: ${q(it.qty)}`);
+        if (it.unit) L.push(`        unit: ${q(it.unit)}`);
       }
 
       function toMarkdown(r) {
@@ -737,8 +727,8 @@ const dragHandle =
           L.push('tools:');
           for (const t of r.tools) L.push(`  - ${q(t)}`);
         }
-        serializeIngredients(L, r.ingredients);
-        serializeGroups(L, 'steps', r.steps);
+        serializeGroups(L, 'ingredients', r.ingredients, serializeIngredientItem);
+        serializeGroups(L, 'steps', r.steps, serializeStringItem);
         if (r.notes.length) {
           L.push('notes:');
           for (const n of r.notes) L.push(`  - ${q(n)}`);
