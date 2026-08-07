@@ -19,7 +19,15 @@ const recipes = defineCollection({
       ingredients: z.array(
         z.object({
           group: z.string().optional(),
-          items: z.array(z.string()),
+          // Each item is structured so the recipe page can convert US measurements to grams.
+          // qty/unit are optional: count or loose items ("1 lemon", "Salt to taste") have neither.
+          items: z.array(
+            z.object({
+              name: z.string(),
+              qty: z.string().optional(), // freeform to preserve "2 ¼", "6-8", "½"
+              unit: z.string().optional(), // "cup", "tbsp", "oz", "g", … or absent for count items
+            })
+          ),
         })
       ),
       steps: z.array(
