@@ -23,11 +23,12 @@ ingredients:
       - "3 tbsp oat milk"
       - "2 tbsp cinnamon sugar"
 steps:
-  - "Preheat oven to 350º F."
-  - "Place softened butter and brown sugar in a bowl and mix together with egg beater until combined. Add in molasses and vanilla extract."
-  - "In a separate bowl mix together the flour, baking soda, salt, ginger, cinnamon, allspice, and cloves."
-  - "Add the dry ingredients to the wet and squish together with hands until crumbly."
-  - "Add the oat milk and continue to squish together until evenly combined."
-  - "Spray baking sheet with canola spray and place balls of dough on it. Flatten dough balls if flatter cookies are desired."
-  - "Bake for 15 minutes. Allow to cool for 20 minutes."
+  - items:
+      - "Preheat oven to 350º F."
+      - "Place softened butter and brown sugar in a bowl and mix together with egg beater until combined. Add in molasses and vanilla extract."
+      - "In a separate bowl mix together the flour, baking soda, salt, ginger, cinnamon, allspice, and cloves."
+      - "Add the dry ingredients to the wet and squish together with hands until crumbly."
+      - "Add the oat milk and continue to squish together until evenly combined."
+      - "Spray baking sheet with canola spray and place balls of dough on it. Flatten dough balls if flatter cookies are desired."
+      - "Bake for 15 minutes. Allow to cool for 20 minutes."
 ---

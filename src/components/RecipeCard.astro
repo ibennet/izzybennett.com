@@ -16,7 +16,7 @@ const searchText = [
   ...keywords,
   ...tools,
   ...ingredients.flatMap((group) => [group.group ?? '', ...group.items]),
-  ...steps,
+  ...steps.flatMap((group) => [group.group ?? '', ...group.items]),
 ]
   .join(' ')
   .toLowerCase();

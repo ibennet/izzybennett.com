@@ -19,10 +19,11 @@ ingredients:
       - "½ tsp salt"
       - "6oz chocolate chips"
 steps:
-  - "Preheat oven to 350º F."
-  - "Place softened butter, brown sugar, and white sugar in a bowl and mix together with egg beater until combined. Add in vanilla extract and egg."
-  - "In a separate bowl mix together the flour, baking soda, and salt."
-  - "Add the dry ingredients to the wet and mix together."
-  - "Spray baking sheets with canola spray and place balls of dough on them. Flatten dough balls if flatter cookies are desired."
-  - "Bake for 8-10 minutes. Let cool."
+  - items:
+      - "Preheat oven to 350º F."
+      - "Place softened butter, brown sugar, and white sugar in a bowl and mix together with egg beater until combined. Add in vanilla extract and egg."
+      - "In a separate bowl mix together the flour, baking soda, and salt."
+      - "Add the dry ingredients to the wet and mix together."
+      - "Spray baking sheets with canola spray and place balls of dough on them. Flatten dough balls if flatter cookies are desired."
+      - "Bake for 8-10 minutes. Let cool."
 ---

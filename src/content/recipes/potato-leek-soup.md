@@ -19,7 +19,8 @@ ingredients:
       - "1 cup heavy cream"
       - "Chives for serving"
 steps:
-  - "Oil the pot and set to medium heat. Add leeks and cook for about 9 minutes or until the leeks are wilted. Then add garlic and cook for an additional 1 minute."
-  - "Add the potatoes, broth, bay leaves, thyme, salt, and pepper, and bring to a boil. Simmer for 15 minutes or until potatoes are soft."
-  - "Fish out thyme and bay leaves. Puree the soup with an immersion blender. Then add in heavy cream and bring to a simmer. When soup is desired thickness, it is done."
+  - items:
+      - "Oil the pot and set to medium heat. Add leeks and cook for about 9 minutes or until the leeks are wilted. Then add garlic and cook for an additional 1 minute."
+      - "Add the potatoes, broth, bay leaves, thyme, salt, and pepper, and bring to a boil. Simmer for 15 minutes or until potatoes are soft."
+      - "Fish out thyme and bay leaves. Puree the soup with an immersion blender. Then add in heavy cream and bring to a simmer. When soup is desired thickness, it is done."
 ---

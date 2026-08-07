@@ -17,8 +17,9 @@ ingredients:
       - "1 tsp chili powder"
       - "2 tsp paprika"
 steps:
-  - "Rinse and sort the pinto beans."
-  - "Add all ingredients to the Instant Pot."
-  - "Cook at high pressure for 55 minutes."
-  - "Let natural release for 15 minutes."
+  - items:
+      - "Rinse and sort the pinto beans."
+      - "Add all ingredients to the Instant Pot."
+      - "Cook at high pressure for 55 minutes."
+      - "Let natural release for 15 minutes."
 ---
