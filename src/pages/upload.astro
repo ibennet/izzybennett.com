@@ -285,9 +285,12 @@ const dragHandle =
       };
       const makeSimpleRow = (field) => makeRow(field, SIMPLE_ROWS[field]);
 
-      function addItem(itemsList) {
+      // The item builders take an optional value so add mode (no value) and edit-mode
+      // rehydration (value from data) share the one call — see fillGroups.
+      function addItem(itemsList, value) {
         const row = makeSimpleRow('item');
         itemsList.appendChild(row);
+        if (value != null) row.querySelector('input').value = value;
         return row;
       }
       function addGroup() {
@@ -296,8 +299,10 @@ const dragHandle =
         return group;
       }
       // Steps mirror ingredients: a group box (tpl-step-group) holding step rows (tpl-step).
-      function addStep(stepsItems) {
-        return appendTpl(stepsItems, 'tpl-step');
+      function addStep(stepsItems, value) {
+        const row = appendTpl(stepsItems, 'tpl-step');
+        if (value != null) setRowValue(row, 'step', value);
+        return row;
       }
       function addStepGroup() {
         const group = addRow('#steps-list', 'tpl-step-group');
@@ -438,17 +443,17 @@ const dragHandle =
         Array.from($(listSel).querySelectorAll(`[data-field="${field}"]`))
           .map((el) => el.value.trim())
           .filter(Boolean);
-      // Read a grouped list ("#list > [data-unit=<unit>]") into [{group?, items}], dropping
-      // empty groups. A blank group name yields no `group` key (renders as a plain list).
-      // Shared by ingredients and steps, which have the identical shape.
-      function readGroups(listSel, unit, groupField, itemField) {
+      // Read a grouped list into [{group?, items}], dropping empty groups. A blank group name
+      // yields no `group` key (renders as a plain list). Shared by ingredients and steps, which
+      // have the identical shape; `group` names both the [data-unit] box and its [data-field].
+      function readGroups(listSel, group, itemField) {
         const out = [];
-        for (const groupEl of $(listSel).querySelectorAll(`[data-unit="${unit}"]`)) {
+        for (const groupEl of $(listSel).querySelectorAll(`[data-unit="${group}"]`)) {
           const items = Array.from(groupEl.querySelectorAll(`[data-field="${itemField}"]`))
             .map((el) => el.value.trim())
             .filter(Boolean);
           if (items.length === 0) continue;
-          const name = (groupEl.querySelector(`[data-field="${groupField}"]`)?.value ?? '').trim();
+          const name = (groupEl.querySelector(`[data-field="${group}"]`)?.value ?? '').trim();
           out.push(name ? { group: name, items } : { items });
         }
         return out;
@@ -470,8 +475,8 @@ const dragHandle =
           cookTime: numOrUndef('#cookTime'),
           servings: numOrUndef('#servings'),
           tools: listVals('#tools-list', 'tool'),
-          ingredients: readGroups('#ingredients-list', 'group', 'group', 'item'),
-          steps: readGroups('#steps-list', 'step-group', 'step-group', 'step'),
+          ingredients: readGroups('#ingredients-list', 'group', 'item'),
+          steps: readGroups('#steps-list', 'step-group', 'step'),
           notes: listVals('#notes-list', 'note'),
           draft: $('#draft').checked,
         };
@@ -751,6 +756,22 @@ const dragHandle =
         }
       }
 
+      // Rehydrate a grouped list ([{group?, items}]) into the editor — the fill counterpart
+      // to readGroups/serializeGroups, shared by ingredients and steps. addItemFn(container,
+      // value) appends one item row; an empty list seeds a single empty group.
+      function fillGroups(listSel, tplId, groupField, itemsSel, addItemFn, groups) {
+        const list = $(listSel);
+        list.innerHTML = '';
+        for (const g of groups?.length ? groups : [{}]) {
+          const groupEl = appendTpl(list, tplId);
+          if (g.group) setRowValue(groupEl, groupField, g.group);
+          const itemsEl = groupEl.querySelector(itemsSel);
+          const items = g.items ?? [];
+          if (items.length === 0) addItemFn(itemsEl);
+          else for (const it of items) addItemFn(itemsEl, it);
+        }
+      }
+
       function fillForm(r) {
         const setVal = (sel, v) => {
           const el = $(sel);
@@ -769,29 +790,8 @@ const dragHandle =
         fillList('#tools-list', 'tool', r.tools);
         fillList('#notes-list', 'note', r.notes);
 
-        $('#steps-list').innerHTML = '';
-        const stepGroups = r.steps ?? [];
-        if (stepGroups.length === 0) addStepGroup();
-        for (const g of stepGroups) {
-          const groupEl = addRow('#steps-list', 'tpl-step-group');
-          if (g.group) setRowValue(groupEl, 'step-group', g.group);
-          const stepsItems = groupEl.querySelector('.steps-items');
-          const items = g.items ?? [];
-          if (items.length === 0) addStep(stepsItems);
-          for (const it of items) setRowValue(addStep(stepsItems), 'step', it);
-        }
-
-        $('#ingredients-list').innerHTML = '';
-        const groups = r.ingredients ?? [];
-        if (groups.length === 0) addGroup();
-        for (const g of groups) {
-          const groupEl = addRow('#ingredients-list', 'tpl-group');
-          if (g.group) setRowValue(groupEl, 'group', g.group);
-          const itemsList = groupEl.querySelector('.items-list');
-          const items = g.items ?? [];
-          if (items.length === 0) addItem(itemsList);
-          for (const it of items) addItem(itemsList).querySelector('input').value = it;
-        }
+        fillGroups('#steps-list', 'tpl-step-group', 'step-group', '.steps-items', addStep, r.steps);
+        fillGroups('#ingredients-list', 'tpl-group', 'group', '.items-list', addItem, r.ingredients);
       }
 
       function enterEditMode(slug) {
