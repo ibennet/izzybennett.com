@@ -18,9 +18,10 @@ ingredients:
       - "¼ tsp cloves"
       - "⅓ cup water"
 steps:
-  - "Preheat oven to 350°F and spray pan with Pam and dust with flour."
-  - "In larger mixing bowl, whisk the sugar and oil. Then whisk in eggs and about half of the can of pumpkin."
-  - "In smaller mixing bowl, mix the flour, salt, baking soda, baking powder, nutmeg, allspice, cinnamon, and cloves."
-  - "Add half of the dry ingredients to the larger bowl then mix. Repeat with remaining half. Then add water and mix."
-  - "Pour mixture into pan. Bake for 1 hour. After 1 hour, turn oven off and leave pan in oven for 15 minutes. Then remove from oven and let cool for 1 hour."
+  - items:
+      - "Preheat oven to 350°F and spray pan with Pam and dust with flour."
+      - "In larger mixing bowl, whisk the sugar and oil. Then whisk in eggs and about half of the can of pumpkin."
+      - "In smaller mixing bowl, mix the flour, salt, baking soda, baking powder, nutmeg, allspice, cinnamon, and cloves."
+      - "Add half of the dry ingredients to the larger bowl then mix. Repeat with remaining half. Then add water and mix."
+      - "Pour mixture into pan. Bake for 1 hour. After 1 hour, turn oven off and leave pan in oven for 15 minutes. Then remove from oven and let cool for 1 hour."
 ---

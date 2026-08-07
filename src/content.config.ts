@@ -22,7 +22,12 @@ const recipes = defineCollection({
           items: z.array(z.string()),
         })
       ),
-      steps: z.array(z.string()),
+      steps: z.array(
+        z.object({
+          group: z.string().optional(),
+          items: z.array(z.string()),
+        })
+      ),
       notes: z.array(z.string()).default([]),
       image: image().optional(),
       draft: z.boolean().default(false),

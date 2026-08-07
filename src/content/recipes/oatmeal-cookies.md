@@ -20,11 +20,12 @@ ingredients:
       - "2 tsp ground cinnamon"
       - "1 ½ cups rolled oats"
 steps:
-  - "Place softened butter, brown sugar, and white sugar in a bowl and mix together with egg beater until combined. Add in vanilla extract and egg."
-  - "In a separate bowl mix together the flour, baking soda, salt, and ground cinnamon."
-  - "Add the dry ingredients to the wet and mix together."
-  - "Place bowl in fridge for at least 30 minutes so the cookies hold shape."
-  - "Preheat oven to 350º F."
-  - "Spray baking sheets with canola spray and place balls of dough on them. Flatten dough balls if flatter cookies are desired."
-  - "Bake for 8-10 minutes. Let cool."
+  - items:
+      - "Place softened butter, brown sugar, and white sugar in a bowl and mix together with egg beater until combined. Add in vanilla extract and egg."
+      - "In a separate bowl mix together the flour, baking soda, salt, and ground cinnamon."
+      - "Add the dry ingredients to the wet and mix together."
+      - "Place bowl in fridge for at least 30 minutes so the cookies hold shape."
+      - "Preheat oven to 350º F."
+      - "Spray baking sheets with canola spray and place balls of dough on them. Flatten dough balls if flatter cookies are desired."
+      - "Bake for 8-10 minutes. Let cool."
 ---

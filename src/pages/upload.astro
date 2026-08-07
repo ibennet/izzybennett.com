@@ -26,6 +26,10 @@ const addBtn =
   'rounded-md px-2 py-1 text-sm font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-100 dark:hover:bg-neutral-900';
 const removeBtn =
   'shrink-0 rounded-lg border border-neutral-300 px-3 text-neutral-400 hover:border-red-400 hover:text-red-500 dark:border-neutral-700';
+// Drag grip for reordering rows/groups. Only the grip is draggable, so the text inputs it
+// sits next to keep normal caret/selection behaviour (native DnD, no library).
+const dragHandle =
+  'shrink-0 cursor-grab touch-none select-none px-0.5 text-lg leading-none text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-400';
 ---
 
 <!doctype html>
@@ -142,12 +146,12 @@ const removeBtn =
         <section>
           <div class="flex items-center justify-between">
             <h2 class={sectionHeading}>Steps <span class="text-accent-600">*</span></h2>
-            <button type="button" data-action="add-step" class={addBtn}>+ Add</button>
+            <button type="button" data-action="add-step-group" class={addBtn}>+ Group</button>
           </div>
           <p class="mt-1 text-xs text-neutral-400">
-            Markdown supported — **bold**, *italic*, `code`, [links](url).
+            Group names are optional — leave blank for a plain list. Markdown supported in steps — **bold**, *italic*, `code`, [links](url).
           </p>
-          <div id="steps-list" class="mt-2 space-y-2"></div>
+          <div id="steps-list" class="mt-2 space-y-4"></div>
         </section>
 
         <!-- Notes -->
@@ -186,7 +190,8 @@ const removeBtn =
     <!-- Row templates. tpl-row is the generic single-line input row (tools / notes /
          ingredient items) — the JS stamps data-field + placeholder per use. -->
     <template id="tpl-row">
-      <div data-unit="row" class="flex gap-2">
+      <div data-unit="row" class="flex items-center gap-2">
+        <span data-drag-handle draggable="true" aria-label="Drag to reorder" class={dragHandle}>⠿</span>
         <input type="text" autocomplete="off" class={rowInput} />
         <button type="button" data-action="remove" aria-label="Remove" class={removeBtn}>✕</button>
       </div>
@@ -194,6 +199,7 @@ const removeBtn =
 
     <template id="tpl-step">
       <div data-unit="step" class="flex gap-2">
+        <span data-drag-handle draggable="true" aria-label="Drag to reorder" class={`${dragHandle} self-start py-1.5`}>⠿</span>
         <textarea data-field="step" rows="2" placeholder="Describe the step…" class={rowInput}></textarea>
         <button type="button" data-action="remove" aria-label="Remove" class={`${removeBtn} self-start py-2`}>✕</button>
       </div>
@@ -201,12 +207,25 @@ const removeBtn =
 
     <template id="tpl-group">
       <div data-unit="group" class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
+          <span data-drag-handle draggable="true" aria-label="Drag to reorder group" class={dragHandle}>⠿</span>
           <input type="text" data-field="group" placeholder="Group name (optional), e.g. Pie Crust" autocomplete="off" class={`${rowInput} text-sm font-medium`} />
           <button type="button" data-action="remove" aria-label="Remove group" class={removeBtn}>✕</button>
         </div>
         <div class="items-list mt-2 space-y-2"></div>
         <button type="button" data-action="add-item" class={`mt-2 ${addBtn}`}>+ Ingredient</button>
+      </div>
+    </template>
+
+    <template id="tpl-step-group">
+      <div data-unit="step-group" class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+        <div class="flex items-center gap-2">
+          <span data-drag-handle draggable="true" aria-label="Drag to reorder group" class={dragHandle}>⠿</span>
+          <input type="text" data-field="step-group" placeholder="Group name (optional), e.g. Make the crust" autocomplete="off" class={`${rowInput} text-sm font-medium`} />
+          <button type="button" data-action="remove" aria-label="Remove group" class={removeBtn}>✕</button>
+        </div>
+        <div class="steps-items mt-2 space-y-2"></div>
+        <button type="button" data-action="add-step" class={`mt-2 ${addBtn}`}>+ Step</button>
       </div>
     </template>
 
@@ -242,12 +261,13 @@ const removeBtn =
       let formDirty = false;
 
       const tpl = (id) => document.getElementById(id);
-      function addRow(listSel, tplId) {
-        const list = $(listSel);
+      // Clone a <template>'s row and append it — to an element (appendTpl) or a selector (addRow).
+      function appendTpl(listEl, tplId) {
         const node = tpl(tplId).content.firstElementChild.cloneNode(true);
-        list.appendChild(node);
+        listEl.appendChild(node);
         return node;
       }
+      const addRow = (listSel, tplId) => appendTpl($(listSel), tplId);
       // Generic single-line row (tools / notes / ingredient items).
       function makeRow(field, placeholder) {
         const row = tpl('tpl-row').content.firstElementChild.cloneNode(true);
@@ -265,14 +285,28 @@ const removeBtn =
       };
       const makeSimpleRow = (field) => makeRow(field, SIMPLE_ROWS[field]);
 
-      function addItem(itemsList) {
+      // The item builders take an optional value so add mode (no value) and edit-mode
+      // rehydration (value from data) share the one call — see fillGroups.
+      function addItem(itemsList, value) {
         const row = makeSimpleRow('item');
         itemsList.appendChild(row);
+        if (value != null) row.querySelector('input').value = value;
         return row;
       }
       function addGroup() {
         const group = addRow('#ingredients-list', 'tpl-group');
         addItem(group.querySelector('.items-list'));
+        return group;
+      }
+      // Steps mirror ingredients: a group box (tpl-step-group) holding step rows (tpl-step).
+      function addStep(stepsItems, value) {
+        const row = appendTpl(stepsItems, 'tpl-step');
+        if (value != null) setRowValue(row, 'step', value);
+        return row;
+      }
+      function addStepGroup() {
+        const group = addRow('#steps-list', 'tpl-step-group');
+        addStep(group.querySelector('.steps-items'));
         return group;
       }
       // Build a picker <option>; shared by the initial index load and post-add registration.
@@ -301,14 +335,57 @@ const removeBtn =
         switch (btn.dataset.action) {
           case 'add-tool': $('#tools-list').appendChild(makeSimpleRow('tool')); break;
           case 'add-note': $('#notes-list').appendChild(makeSimpleRow('note')); break;
-          case 'add-step': addRow('#steps-list', 'tpl-step'); break;
+          case 'add-step-group': addStepGroup(); break;
+          case 'add-step': addStep(btn.closest('[data-unit="step-group"]').querySelector('.steps-items')); break;
           case 'add-group': addGroup(); break;
           case 'add-item': addItem(btn.closest('[data-unit="group"]').querySelector('.items-list')); break;
-          case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
+          case 'remove': btn.closest('[data-unit]')?.remove(); formDirty = true; refreshPreview(); break;
         }
       });
       form.addEventListener('input', () => {
         formDirty = true;
+        refreshPreview();
+      });
+
+      // ---- Drag-to-reorder (native HTML5, no library) ---------------------
+      // Only the grip (data-drag-handle) is draggable, so text inputs stay editable. A drag
+      // reorders the grip's [data-unit] element within its own parent list only — which
+      // naturally scopes each drag to its own list and blocks cross-group/cross-type moves.
+      // DOM order is already the source of truth (readForm reads in document order), so moving
+      // the node is the entire change. Note: HTML5 DnD does not fire on touch devices.
+      let draggedEl = null;
+      // The child whose vertical midpoint sits just below the cursor — insert before it.
+      function getDragAfterElement(container, y) {
+        const els = [...container.children].filter((el) => el !== draggedEl && el.matches('[data-unit]'));
+        let closest = { offset: -Infinity, el: null };
+        for (const el of els) {
+          const box = el.getBoundingClientRect();
+          const offset = y - (box.top + box.height / 2);
+          if (offset < 0 && offset > closest.offset) closest = { offset, el };
+        }
+        return closest.el;
+      }
+      form.addEventListener('dragstart', (e) => {
+        const grip = e.target.closest('[data-drag-handle]');
+        if (!grip) return;
+        draggedEl = grip.closest('[data-unit]');
+        draggedEl.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // Firefox won't start a drag without a payload
+      });
+      form.addEventListener('dragover', (e) => {
+        if (!draggedEl) return;
+        e.preventDefault();
+        const container = draggedEl.parentElement;
+        const after = getDragAfterElement(container, e.clientY);
+        if (after == null) container.appendChild(draggedEl);
+        else container.insertBefore(draggedEl, after);
+      });
+      form.addEventListener('dragend', () => {
+        if (!draggedEl) return;
+        draggedEl.classList.remove('opacity-50');
+        draggedEl = null;
+        formDirty = true; // a reorder is a real edit, but moving a node fires no 'input' event
         refreshPreview();
       });
 
@@ -367,6 +444,21 @@ const removeBtn =
         Array.from($(listSel).querySelectorAll(`[data-field="${field}"]`))
           .map((el) => el.value.trim())
           .filter(Boolean);
+      // Read a grouped list into [{group?, items}], dropping empty groups. A blank group name
+      // yields no `group` key (renders as a plain list). Shared by ingredients and steps, which
+      // have the identical shape; `group` names both the [data-unit] box and its [data-field].
+      function readGroups(listSel, group, itemField) {
+        const out = [];
+        for (const groupEl of $(listSel).querySelectorAll(`[data-unit="${group}"]`)) {
+          const items = Array.from(groupEl.querySelectorAll(`[data-field="${itemField}"]`))
+            .map((el) => el.value.trim())
+            .filter(Boolean);
+          if (items.length === 0) continue;
+          const name = (groupEl.querySelector(`[data-field="${group}"]`)?.value ?? '').trim();
+          out.push(name ? { group: name, items } : { items });
+        }
+        return out;
+      }
       const numOrUndef = (sel) => {
         const v = val(sel);
         if (v === '') return undefined;
@@ -375,15 +467,6 @@ const removeBtn =
       };
 
       function readForm() {
-        const ingredients = [];
-        for (const groupEl of $('#ingredients-list').querySelectorAll('[data-unit="group"]')) {
-          const items = Array.from(groupEl.querySelectorAll('[data-field="item"]'))
-            .map((el) => el.value.trim())
-            .filter(Boolean);
-          if (items.length === 0) continue;
-          const name = (groupEl.querySelector('[data-field="group"]')?.value ?? '').trim();
-          ingredients.push(name ? { group: name, items } : { items });
-        }
         return {
           title: val('#title'),
           category: val('#category'),
@@ -393,8 +476,8 @@ const removeBtn =
           cookTime: numOrUndef('#cookTime'),
           servings: numOrUndef('#servings'),
           tools: listVals('#tools-list', 'tool'),
-          ingredients,
-          steps: listVals('#steps-list', 'step'),
+          ingredients: readGroups('#ingredients-list', 'group', 'item'),
+          steps: readGroups('#steps-list', 'step-group', 'step'),
           notes: listVals('#notes-list', 'note'),
           draft: $('#draft').checked,
         };
@@ -414,6 +497,20 @@ const removeBtn =
           .replace(/\t/g, '\\t') +
         '"';
 
+      // Serialize [{group?, items}] as YAML under `key:` — the shared ingredient/step shape.
+      function serializeGroups(L, key, groups) {
+        L.push(`${key}:`);
+        for (const g of groups) {
+          if (g.group) {
+            L.push(`  - group: ${q(g.group)}`);
+            L.push('    items:');
+          } else {
+            L.push('  - items:');
+          }
+          for (const it of g.items) L.push(`      - ${q(it)}`);
+        }
+      }
+
       function toMarkdown(r) {
         const L = ['---'];
         L.push(`title: ${q(r.title)}`);
@@ -427,18 +524,8 @@ const removeBtn =
           L.push('tools:');
           for (const t of r.tools) L.push(`  - ${q(t)}`);
         }
-        L.push('ingredients:');
-        for (const g of r.ingredients) {
-          if (g.group) {
-            L.push(`  - group: ${q(g.group)}`);
-            L.push('    items:');
-          } else {
-            L.push('  - items:');
-          }
-          for (const it of g.items) L.push(`      - ${q(it)}`);
-        }
-        L.push('steps:');
-        for (const s of r.steps) L.push(`  - ${q(s)}`);
+        serializeGroups(L, 'ingredients', r.ingredients);
+        serializeGroups(L, 'steps', r.steps);
         if (r.notes.length) {
           L.push('notes:');
           for (const n of r.notes) L.push(`  - ${q(n)}`);
@@ -670,6 +757,22 @@ const removeBtn =
         }
       }
 
+      // Rehydrate a grouped list ([{group?, items}]) into the editor — the fill counterpart
+      // to readGroups/serializeGroups, shared by ingredients and steps. addItemFn(container,
+      // value) appends one item row; an empty list seeds a single empty group.
+      function fillGroups(listSel, tplId, groupField, itemsSel, addItemFn, groups) {
+        const list = $(listSel);
+        list.innerHTML = '';
+        for (const g of groups?.length ? groups : [{}]) {
+          const groupEl = appendTpl(list, tplId);
+          if (g.group) setRowValue(groupEl, groupField, g.group);
+          const itemsEl = groupEl.querySelector(itemsSel);
+          const items = g.items ?? [];
+          if (items.length === 0) addItemFn(itemsEl);
+          else for (const it of items) addItemFn(itemsEl, it);
+        }
+      }
+
       function fillForm(r) {
         const setVal = (sel, v) => {
           const el = $(sel);
@@ -688,23 +791,8 @@ const removeBtn =
         fillList('#tools-list', 'tool', r.tools);
         fillList('#notes-list', 'note', r.notes);
 
-        $('#steps-list').innerHTML = '';
-        for (const s of r.steps ?? []) {
-          const row = addRow('#steps-list', 'tpl-step');
-          setRowValue(row, 'step', s);
-        }
-
-        $('#ingredients-list').innerHTML = '';
-        const groups = r.ingredients ?? [];
-        if (groups.length === 0) addGroup();
-        for (const g of groups) {
-          const groupEl = addRow('#ingredients-list', 'tpl-group');
-          if (g.group) setRowValue(groupEl, 'group', g.group);
-          const itemsList = groupEl.querySelector('.items-list');
-          const items = g.items ?? [];
-          if (items.length === 0) addItem(itemsList);
-          for (const it of items) addItem(itemsList).querySelector('input').value = it;
-        }
+        fillGroups('#steps-list', 'tpl-step-group', 'step-group', '.steps-items', addStep, r.steps);
+        fillGroups('#ingredients-list', 'tpl-group', 'group', '.items-list', addItem, r.ingredients);
       }
 
       function enterEditMode(slug) {
@@ -755,7 +843,7 @@ const removeBtn =
         $('#ingredients-list').innerHTML = '';
         $('#steps-list').innerHTML = '';
         addGroup();
-        addRow('#steps-list', 'tpl-step');
+        addStepGroup();
         refreshPreview();
       }
       ingestSessionFromHash();

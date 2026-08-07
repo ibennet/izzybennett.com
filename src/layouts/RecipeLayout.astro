@@ -84,16 +84,23 @@ const hasMeta = prepTime !== undefined || cookTime !== undefined || servings !==
 
     <section class="mt-8">
       <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-500">Steps</h2>
-      <ol class="mt-3 space-y-3">
-        {steps.map((step, i) => (
-          <li class="flex gap-3">
-            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-50 text-xs font-medium text-accent-700 dark:bg-neutral-800 dark:text-accent-100">
-              {i + 1}
-            </span>
-            <span class="text-neutral-700 dark:text-neutral-300" set:html={inlineMarkdown(step)} />
-          </li>
+      <div class="mt-3 space-y-4">
+        {steps.map((group) => (
+          <div>
+            {group.group && <h3 class="mb-1.5 font-medium text-neutral-800 dark:text-neutral-200">{group.group}</h3>}
+            <ol class="space-y-3">
+              {group.items.map((step, i) => (
+                <li class="flex gap-3">
+                  <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-50 text-xs font-medium text-accent-700 dark:bg-neutral-800 dark:text-accent-100">
+                    {i + 1}
+                  </span>
+                  <span class="text-neutral-700 dark:text-neutral-300" set:html={inlineMarkdown(step)} />
+                </li>
+              ))}
+            </ol>
+          </div>
         ))}
-      </ol>
+      </div>
     </section>
 
     {notes.length > 0 && (

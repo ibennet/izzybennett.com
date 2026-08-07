@@ -14,8 +14,9 @@ ingredients:
       - "1 tsp garlic powder"
       - "½ tsp sesame oil"
 steps:
-  - "Combine all ingredients into sauce pan."
-  - "Bring to a boil while stirring, then reduce to medium heat."
-  - "While stirring occasionally, let the sauce thicken for around 5 minutes."
-  - "Remove from heat."
+  - items:
+      - "Combine all ingredients into sauce pan."
+      - "Bring to a boil while stirring, then reduce to medium heat."
+      - "While stirring occasionally, let the sauce thicken for around 5 minutes."
+      - "Remove from heat."
 ---
