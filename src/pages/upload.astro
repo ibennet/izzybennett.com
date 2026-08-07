@@ -339,7 +339,7 @@ const dragHandle =
           case 'add-step': addStep(btn.closest('[data-unit="step-group"]').querySelector('.steps-items')); break;
           case 'add-group': addGroup(); break;
           case 'add-item': addItem(btn.closest('[data-unit="group"]').querySelector('.items-list')); break;
-          case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
+          case 'remove': btn.closest('[data-unit]')?.remove(); formDirty = true; refreshPreview(); break;
         }
       });
       form.addEventListener('input', () => {
@@ -385,6 +385,7 @@ const dragHandle =
         if (!draggedEl) return;
         draggedEl.classList.remove('opacity-50');
         draggedEl = null;
+        formDirty = true; // a reorder is a real edit, but moving a node fires no 'input' event
         refreshPreview();
       });
 
