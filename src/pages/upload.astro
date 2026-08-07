@@ -216,6 +216,10 @@ const removeBtn =
       // opaque session id under SESSION_KEY — never a GitHub token.
       const API = RECIPE_API;
       const SESSION_KEY = 'izzy-recipe-session';
+      // Unsaved form content is autosaved here so it survives a full-page reload — most
+      // importantly the GitHub OAuth round-trip, which navigates away and back. Holds
+      // { editingSlug, recipe } where recipe is a readForm() snapshot.
+      const DRAFT_KEY = 'izzy-recipe-draft';
 
       // ---- Element helpers ------------------------------------------------
       const $ = (sel) => document.querySelector(sel);
@@ -240,6 +244,9 @@ const removeBtn =
       // before the picker discards unsaved edits. Set only by real user input (not by the
       // programmatic value-setting in fillForm/resetDynamic, which fire no 'input' event).
       let formDirty = false;
+      // True once an autosaved draft has been restored into the form on load; makes the
+      // ?edit=<slug> deep link stand down so it can't overwrite the restored content.
+      let draftRestored = false;
 
       const tpl = (id) => document.getElementById(id);
       function addRow(listSel, tplId) {
@@ -306,10 +313,13 @@ const removeBtn =
           case 'add-item': addItem(btn.closest('[data-unit="group"]').querySelector('.items-list')); break;
           case 'remove': btn.closest('[data-unit]')?.remove(); refreshPreview(); break;
         }
+        // Row add/remove changes the form's content but fires no 'input' event, so persist here.
+        saveDraftSoon();
       });
       form.addEventListener('input', () => {
         formDirty = true;
         refreshPreview();
+        saveDraftSoon();
       });
 
       // ---- Session / auth -------------------------------------------------
@@ -399,6 +409,54 @@ const removeBtn =
           draft: $('#draft').checked,
         };
       }
+
+      // ---- Draft autosave -------------------------------------------------
+      // Persist in-progress form content so it survives a reload / the OAuth round-trip.
+      // Only real user edits trigger a save (see the input + row-button handlers); the
+      // programmatic fills in fillForm/enterEditMode/enterAddMode deliberately don't.
+      let draftTimer = null;
+
+      // Is there anything worth keeping? Guards against saving/restoring an empty form
+      // (which would otherwise pop a spurious "restored draft" note on every visit).
+      function hasContent(r) {
+        return !!(
+          r.title || r.description ||
+          (r.keywords && r.keywords.length) ||
+          r.prepTime !== undefined || r.cookTime !== undefined || r.servings !== undefined ||
+          (r.tools && r.tools.length) ||
+          (r.steps && r.steps.length) ||
+          (r.notes && r.notes.length) ||
+          // readForm() drops groups with no items, so any group present means real content.
+          (r.ingredients && r.ingredients.length)
+        );
+      }
+
+      function clearDraft() {
+        // Cancel any pending debounced save first, or it would fire after this and rewrite the
+        // draft we just dropped — in edit mode the form isn't reset on save, so a save scheduled
+        // just before "Save changes" would resurrect the draft and spuriously offer to restore it.
+        clearTimeout(draftTimer);
+        try { localStorage.removeItem(DRAFT_KEY); } catch { /* private mode — nothing to clear */ }
+      }
+
+      function saveDraft() {
+        const recipe = readForm();
+        if (!hasContent(recipe)) { clearDraft(); return; }
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({ editingSlug, recipe }));
+        } catch { /* quota/private mode — a lost autosave is non-fatal */ }
+      }
+
+      // Debounced so we don't touch localStorage on every keystroke.
+      function saveDraftSoon() {
+        clearTimeout(draftTimer);
+        draftTimer = setTimeout(saveDraft, 400);
+      }
+
+      // Flush any pending debounced save when the page is being hidden — the user clicking
+      // "Sign in with GitHub" is a full-page navigation, and it can land inside the 400ms
+      // debounce window and otherwise lose the most recent edits. pagehide covers nav + tab close.
+      window.addEventListener('pagehide', saveDraft);
 
       // ---- YAML frontmatter serializer ------------------------------------
       // Escape order matters: backslashes first, then the chars whose escapes
@@ -583,6 +641,9 @@ const removeBtn =
             statusEl.appendChild(link);
           }
 
+          // The work is safely committed, so drop the autosaved draft (add and edit mode alike).
+          clearDraft();
+
           // Add mode: clear the form for the next recipe. Edit mode: stay put for further tweaks.
           if (!editingSlug) {
             form.reset();
@@ -647,6 +708,12 @@ const removeBtn =
             frag.appendChild(makeOption(r.slug, r.title));
           }
           picker.appendChild(frag);
+          if (draftRestored) {
+            // A restored draft owns the form; just point the picker at the slug it's editing
+            // (its <option> only exists now that the index has loaded) — don't refill from the index.
+            if (editingSlug) picker.value = editingSlug;
+            return;
+          }
           // Deep link: /upload?edit=<slug> jumps straight into editing once data is in.
           const wanted = new URLSearchParams(location.search).get('edit');
           if (wanted && recipesBySlug[wanted]) enterEditMode(wanted);
@@ -707,16 +774,29 @@ const removeBtn =
         }
       }
 
+      // Page chrome (title / intro / publish-button label / delete visibility) for each mode,
+      // split out so restoreDraft can apply edit-mode chrome before the recipe index has loaded
+      // (it can't call enterEditMode, which needs recipesBySlug + the picker option to exist).
+      function setEditChrome() {
+        pageTitle.textContent = 'Edit recipe';
+        pageIntro.textContent = 'Tweak it, save, and the change goes live in a minute or two.';
+        publishBtn.textContent = 'Save changes';
+        deleteBtn.classList.remove('hidden');
+      }
+      function setAddChrome() {
+        pageTitle.textContent = 'Add a recipe';
+        pageIntro.textContent = 'Fill it in, hit publish, and it goes live in a minute or two.';
+        publishBtn.textContent = 'Publish 🚀';
+        deleteBtn.classList.add('hidden');
+      }
+
       function enterEditMode(slug) {
         const r = recipesBySlug[slug];
         if (!r) return;
         editingSlug = slug;
         picker.value = slug;
         fillForm(r);
-        pageTitle.textContent = 'Edit recipe';
-        pageIntro.textContent = 'Tweak it, save, and the change goes live in a minute or two.';
-        publishBtn.textContent = 'Save changes';
-        deleteBtn.classList.remove('hidden');
+        setEditChrome();
         refreshPreview();
         setStatus(`Editing “${r.title}”.`, 'info');
         formDirty = false;
@@ -725,10 +805,7 @@ const removeBtn =
       function enterAddMode() {
         editingSlug = null;
         picker.value = '';
-        pageTitle.textContent = 'Add a recipe';
-        pageIntro.textContent = 'Fill it in, hit publish, and it goes live in a minute or two.';
-        publishBtn.textContent = 'Publish 🚀';
-        deleteBtn.classList.add('hidden');
+        setAddChrome();
         form.reset();
         resetDynamic();
         setStatus('', '');
@@ -748,6 +825,36 @@ const removeBtn =
         else enterAddMode();
       });
 
+      // Repopulate the form from an autosaved draft (if any) on page load. This is what
+      // rescues in-progress work across the OAuth sign-in round-trip and accidental reloads.
+      function restoreDraft() {
+        let saved;
+        try { saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { saved = null; }
+        if (!saved || !saved.recipe || !hasContent(saved.recipe)) return;
+
+        fillForm(saved.recipe);
+        if (saved.editingSlug) {
+          // The recipe index isn't loaded yet, so apply edit-mode chrome directly instead of
+          // via enterEditMode; loadRecipeIndex fixes up picker.value once the option exists.
+          editingSlug = saved.editingSlug;
+          setEditChrome();
+        }
+        draftRestored = true;
+        // A restored draft is unsaved work, so mark it dirty — otherwise switching recipes in
+        // the picker would swap the form contents without the "Discard unsaved changes?" prompt.
+        formDirty = true;
+        refreshPreview();
+
+        // Auto-restored, with a one-click way to throw it away and start clean.
+        setStatus('Restored your unsaved draft. ', 'ok');
+        const discard = document.createElement('button');
+        discard.type = 'button';
+        discard.textContent = 'Discard';
+        discard.className = 'underline';
+        discard.addEventListener('click', () => { clearDraft(); enterAddMode(); });
+        statusEl.appendChild(discard);
+      }
+
       // ---- Init -----------------------------------------------------------
       function resetDynamic() {
         $('#tools-list').innerHTML = '';
@@ -761,6 +868,7 @@ const removeBtn =
       ingestSessionFromHash();
       renderAuthState();
       resetDynamic();
+      restoreDraft();
       loadRecipeIndex();
     </script>
   </body>
