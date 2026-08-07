@@ -369,10 +369,20 @@ const dragHandle =
         if (value != null) {
           const set = (field, v) => { if (v != null) row.querySelector(`[data-field="${field}"]`).value = v; };
           if (typeof value === 'string') set('item-name', value);
-          else { set('item-name', value.name); set('item-qty', value.qty); set('item-unit', value.unit); }
+          else { set('item-name', value.name); set('item-qty', value.qty); setUnit(row, value.unit); }
           updateItemRow(row);
         }
         return row;
+      }
+
+      // Set a row's unit <select>, injecting a one-off <option> for a unit that isn't in the
+      // standard list — otherwise a hand-authored recipe's unusual unit (e.g. "clove") would be
+      // silently dropped on edit, because assigning an unknown value to a <select> is a no-op.
+      function setUnit(row, unit) {
+        if (!unit) return;
+        const sel = row.querySelector('[data-field="item-unit"]');
+        if (![...sel.options].some((o) => o.value === unit)) sel.add(new Option(unit, unit));
+        sel.value = unit;
       }
 
       // Show/hide a row's grams prompt and, when grams are entered, capture the derived ratio.
@@ -831,8 +841,16 @@ const dragHandle =
         deleteBtn.disabled = true;
         try {
           setStatus(editingSlug ? 'Saving…' : 'Publishing…', 'info');
-          // Any new grams ratios the user supplied ride along so the Worker can grow the shared list.
-          const densities = Object.keys(pendingDensities).length ? pendingDensities : undefined;
+          // New grams ratios ride along so the Worker can grow the shared list — but only for
+          // ingredients actually in THIS recipe. That drops anything left in pendingDensities from
+          // a rename or a prior recipe, so unrelated ratios never tag along on a publish.
+          const recipeNames = new Set(
+            recipe.ingredients.flatMap((g) => g.items.map((it) => it.name.toLowerCase()))
+          );
+          const pending = Object.fromEntries(
+            Object.entries(pendingDensities).filter(([name]) => recipeNames.has(name))
+          );
+          const densities = Object.keys(pending).length ? pending : undefined;
           const commit = (overwrite) =>
             apiFetch('/api/recipe', {
               method: 'POST',
@@ -882,11 +900,11 @@ const dragHandle =
 
           // New grams ratios are committed best-effort alongside the recipe. On success, fold them
           // into what this session "knows" (so rows stop prompting); on failure, keep them and warn.
-          if (Object.keys(pendingDensities).length) {
+          if (densities) {
             if (result.densitiesSaved === false) {
               setStatus('Recipe saved — but the new gram conversions didn’t save. Re-publish to retry them.', 'err');
             } else {
-              Object.assign(knownDensities, pendingDensities);
+              Object.assign(knownDensities, pending);
               clearPending();
               refreshAllItemRows();
             }
@@ -894,6 +912,7 @@ const dragHandle =
 
           // Add mode: clear the form for the next recipe. Edit mode: stay put for further tweaks.
           if (!editingSlug) {
+            clearPending(); // don't carry a failed-save's ratios into the next recipe
             form.reset();
             resetDynamic();
           }
