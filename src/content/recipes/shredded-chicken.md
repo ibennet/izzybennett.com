@@ -9,9 +9,12 @@ tools:
   - "Tongs"
 ingredients:
   - items:
-      - "2 chicken breasts"
-      - "1 cup chicken broth"
-      - "Seasonings if desired"
+      - name: "chicken breasts"
+        qty: "2"
+      - name: "chicken broth"
+        qty: "1"
+        unit: "cup"
+      - name: "Seasonings if desired"
 steps:
   - items:
       - "Tenderize the chicken breasts so that they are evenly thick."
