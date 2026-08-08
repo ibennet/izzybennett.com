@@ -3,6 +3,7 @@ import BaseLayout from './BaseLayout.astro';
 import type { CollectionEntry } from 'astro:content';
 import { inlineMarkdown } from '../lib/markdown';
 import { toGrams, formatGrams, ingredientLabel, type Densities } from '../lib/units';
+import { buildIngredientIndex, linkIngredientsInHtml } from '../lib/ingredients';
 import densityData from '../data/densities.json';
 
 interface Props {
@@ -28,6 +29,12 @@ const ingredientGroups = ingredients.map((group) => ({
   }),
 }));
 const anyConvertible = ingredientGroups.some((group) => group.items.some((item) => item.grams !== null));
+
+// Index the recipe's ingredients so mentions in the step prose can be linked to their
+// measurement. `idState` threads a single counter through every step so each popover
+// gets a page-unique id for its aria-describedby.
+const ingredientIndex = buildIngredientIndex(ingredients);
+const popoverIds = { n: 0 };
 ---
 
 <BaseLayout title={title} description={description}>
@@ -124,7 +131,7 @@ const anyConvertible = ingredientGroups.some((group) => group.items.some((item) 
                   <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-50 text-xs font-medium text-accent-700 dark:bg-neutral-800 dark:text-accent-100">
                     {i + 1}
                   </span>
-                  <span class="text-neutral-700 dark:text-neutral-300" set:html={inlineMarkdown(step)} />
+                  <span class="text-neutral-700 dark:text-neutral-300" set:html={linkIngredientsInHtml(inlineMarkdown(step), ingredientIndex, popoverIds)} />
                 </li>
               ))}
             </ol>
@@ -159,10 +166,15 @@ const anyConvertible = ingredientGroups.some((group) => group.items.some((item) 
 
 <script>
   import { applyAuthState } from '../scripts/recipe-session';
+  import { initIngredientPopovers } from '../scripts/ingredient-popover';
 
   // Reveal the edit link only when signed in. OAuth never returns to a detail page, so there's no
   // hash to ingest here — just reflect the stored session onto <html data-auth> and let CSS gate.
   applyAuthState();
+
+  // Tap-toggle + dismissal for the ingredient-measurement popovers in the steps (hover/focus
+  // are pure CSS; this only adds touch and Escape/outside-click behavior).
+  initIngredientPopovers();
 
   // Ingredient unit toggle (US ↔ Grams). The choice is stored so it carries across recipes.
   const UNITS_KEY = 'izzy-recipe-units';
