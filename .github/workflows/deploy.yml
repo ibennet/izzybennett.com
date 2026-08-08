@@ -30,6 +30,10 @@ jobs:
           # repo Settings → Secrets and variables → Actions → Variables as PUBLIC_RECIPE_API,
           # e.g. https://izzy-recipe-api.<subdomain>.workers.dev
           PUBLIC_RECIPE_API: ${{ vars.PUBLIC_RECIPE_API }}
+          # Base URL of the Pi order server (via Cloudflare Tunnel), backing /order and /orders.
+          # Set once in repo Settings → Secrets and variables → Actions → Variables as
+          # PUBLIC_ORDER_API, e.g. https://orders.izzybennett.com
+          PUBLIC_ORDER_API: ${{ vars.PUBLIC_ORDER_API }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
