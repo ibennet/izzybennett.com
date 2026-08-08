@@ -33,7 +33,10 @@ const anyConvertible = ingredientGroups.some((group) => group.items.some((item) 
 // Index the recipe's ingredients so mentions in the step prose can be linked to their
 // measurement. `idState` threads a single counter through every step so each popover
 // gets a page-unique id for its aria-describedby.
-const ingredientIndex = buildIngredientIndex(ingredients);
+const ingredientIndex = buildIngredientIndex(ingredients, (item) => {
+  const grams = toGrams(item.qty, item.unit, item.name, densities);
+  return grams === null ? null : formatGrams(grams);
+});
 const popoverIds = { n: 0 };
 ---
 
@@ -187,6 +190,9 @@ const popoverIds = { n: 0 };
     const apply = (units: string) => {
       const mode = units === 'grams' ? 'grams' : 'us';
       list.dataset.units = mode;
+      // Also reflect the mode on <html> so the step popovers (outside #ingredients-list)
+      // switch US ↔ grams with the same toggle.
+      document.documentElement.dataset.units = mode;
       for (const btn of buttons) {
         const on = btn.dataset.unitsBtn === mode;
         btn.setAttribute('aria-pressed', String(on));

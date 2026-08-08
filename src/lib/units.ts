@@ -121,6 +121,30 @@ export function parseQty(qty: string | number | undefined | null): number | null
 }
 
 /**
+ * Look up an ingredient's grams-per-cup density by name, tolerating qualifiers the density
+ * list doesn't spell out. Tries the cleaned full name first (so a qualifier that changes the
+ * density — "powdered sugar" 120 vs "sugar" 200 — still wins), then progressively drops
+ * leading words ("unsalted butter" → "butter", "Greek yogurt" → "yogurt"). Returns null when
+ * nothing matches.
+ */
+export function lookupDensity(name: string | undefined | null, densities: Densities): number | null {
+  const clean = String(name ?? '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .split(',')[0]
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return null;
+
+  const words = clean.split(' ');
+  for (let i = 0; i < words.length; i++) {
+    const candidate = words.slice(i).join(' ');
+    if (densities?.[candidate] != null) return densities[candidate];
+  }
+  return null;
+}
+
+/**
  * Convert (qty, unit, name) to grams, or null if it can't be converted:
  *   - weight unit  → qty × fixed factor (density irrelevant);
  *   - volume unit  → qty × cups-per-unit × density[name] (needs a known density);
@@ -141,7 +165,7 @@ export function toGrams(
   }
 
   if (u in VOLUME_IN_CUPS) {
-    const density = densities?.[String(name ?? '').toLowerCase().trim()];
+    const density = lookupDensity(name, densities);
     if (density == null) return null;
     const n = parseQty(qty);
     return n == null ? null : n * VOLUME_IN_CUPS[u] * density;

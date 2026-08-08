@@ -17,7 +17,7 @@ const cookies: IngredientGroup[] = [
   },
 ];
 
-// Mirrors apple-bread.md (grouped, with duplicate names across groups + prep-prefixed names).
+// Mirrors apple-bread.md (grouped, duplicate names across groups + prep-prefixed names).
 const appleBread: IngredientGroup[] = [
   {
     group: 'Bread layer',
@@ -46,6 +46,30 @@ const appleBread: IngredientGroup[] = [
   },
 ];
 
+// Mirrors earl-grey-pound-cake.md — heavily qualified names, short prose references.
+const earlGrey: IngredientGroup[] = [
+  {
+    group: 'Wet Ingredients',
+    items: [
+      { name: 'unsalted butter, room temp', qty: '1', unit: 'cup' },
+      { name: 'vegetable oil', qty: '1/4', unit: 'cup' },
+      { name: 'granulated sugar', qty: '1 3/4', unit: 'cup' },
+      { name: 'Greek yogurt, room temp', qty: '1/2', unit: 'cup' },
+      { name: 'vanilla bean paste', qty: '1', unit: 'tsp' },
+      { name: 'lavender paste (or extract)', qty: '1', unit: 'tsp' },
+    ],
+  },
+  {
+    group: 'Buttercream Ingredients',
+    items: [
+      { name: 'unsalted butter, softened', qty: '3/4', unit: 'cup' },
+      { name: 'powdered sugar', qty: '2', unit: 'cup' },
+      { name: 'vanilla bean paste', qty: '1 1/2', unit: 'tsp' },
+      { name: 'lavender extract', qty: '1/2', unit: 'tsp' },
+    ],
+  },
+];
+
 /** Render a step and strip it back to "label→popover-text" pairs for easy assertions. */
 function linked(step: string, groups: IngredientGroup[]): Array<[string, string]> {
   const html = linkIngredientsInHtml(step, buildIngredientIndex(groups), { n: 0 });
@@ -53,55 +77,94 @@ function linked(step: string, groups: IngredientGroup[]): Array<[string, string]
   const re = /<button[^>]*>([^<]*)<\/button><span[^>]*class="ing-pop"[^>]*>(.*?)<\/span><\/span>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
-    out.push([m[1], m[2].replace(/<[^>]+>/g, '').trim()]);
+    out.push([m[1], m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()]);
   }
   return out;
 }
 
-describe('buildIngredientIndex', () => {
-  it('excludes items with no measurement', () => {
-    const { lookup } = buildIngredientIndex(cookies);
-    expect(lookup.has('oil spray')).toBe(false);
-    expect(lookup.get('flour')).toEqual([{ measurement: '1 ½ cup', group: undefined }]);
-  });
+/** Full rendered HTML for a step. */
+function render(step: string, groups: IngredientGroup[]): string {
+  return linkIngredientsInHtml(step, buildIngredientIndex(groups), { n: 0 });
+}
 
-  it('keeps a count-only measurement (no unit)', () => {
-    const { lookup } = buildIngredientIndex(cookies);
-    expect(lookup.get('egg')).toEqual([{ measurement: '1', group: undefined }]);
-  });
+/** How many ingredient triggers a step produced. */
+function triggerCount(html: string): number {
+  return (html.match(/class="ing-ref"/g) ?? []).length;
+}
 
-  it('collects every measurement for a name repeated across groups', () => {
-    const { lookup } = buildIngredientIndex(appleBread);
-    expect(lookup.get('vanilla extract')).toEqual([
-      { measurement: '1 ½ tsp', group: 'Bread layer' },
-      { measurement: '½ tsp', group: 'Icing' },
-    ]);
-    expect(lookup.get('oat milk')).toHaveLength(2);
-  });
-});
-
-describe('linkIngredientsInHtml — matching', () => {
-  it('matches a plain single-word name', () => {
+describe('measurement resolution', () => {
+  it('resolves a plain single-word name', () => {
     expect(linked('mix the flour well', cookies)).toEqual([['flour', '1 ½ cup']]);
   });
 
+  it('keeps a count-only measurement (no unit)', () => {
+    expect(linked('add the egg', cookies)).toEqual([['egg', '1']]);
+  });
+
+  it('excludes items with no measurement', () => {
+    expect(linked('spray the pan with oil spray', cookies)).toEqual([]);
+  });
+});
+
+describe('longest-match & specificity', () => {
   it('prefers the longest name (brown sugar, not sugar)', () => {
-    const hits = linked('add brown sugar and white sugar', cookies);
-    expect(hits).toEqual([
+    expect(linked('add brown sugar and white sugar', cookies)).toEqual([
       ['brown sugar', '½ cup'],
       ['white sugar', '6 tbsp'],
     ]);
   });
 
-  it('does not match a plain "sugar" mention as brown/white sugar', () => {
-    // apple-bread has a standalone "sugar" ingredient.
+  it('a real "sugar" ingredient wins over another name\'s generic alias', () => {
+    // apple-bread has a standalone "sugar"; "brown sugar" also aliases to "sugar" generically,
+    // but the specific full-name match must win, so plain "sugar" resolves to just ⅔ cup.
     expect(linked('cream the butter and sugar', appleBread)).toEqual([
-      ['butter', '8 tbsp'], // matched via prep-stripped alias of "softened butter"
+      ['butter', '8 tbsp'],
       ['sugar', '⅔ cup'],
     ]);
   });
+});
 
-  it('matches through a leading prep adjective (medium apples → apples)', () => {
+describe('qualified names ↔ short prose (earl grey)', () => {
+  it('matches a head noun through a type qualifier (vegetable oil → oil)', () => {
+    expect(linked('beat in the oil', earlGrey)).toEqual([['oil', '1/4 cup']]);
+  });
+
+  it('matches through a trailing descriptor (vanilla bean paste → vanilla)', () => {
+    // vanilla bean paste appears in both groups → both measurements, with group labels.
+    const html = render('mix in the vanilla', earlGrey);
+    expect(triggerCount(html)).toBe(1);
+    expect(html).toContain('1 tsp');
+    expect(html).toContain('Wet Ingredients');
+    expect(html).toContain('1 1/2 tsp');
+    expect(html).toContain('Buttercream Ingredients');
+  });
+
+  it('collapses lavender paste / extract to one "lavender" mention with both amounts', () => {
+    const html = render('add the lavender', earlGrey);
+    expect(triggerCount(html)).toBe(1);
+    expect(html).toContain('1 tsp');
+    expect(html).toContain('1/2 tsp');
+  });
+
+  it('resolves a bare "sugar" to every sugar when there is no plain one', () => {
+    const html = render('add the sugar', earlGrey);
+    expect(html).toContain('1 3/4 cup'); // granulated
+    expect(html).toContain('2 cup'); // powdered
+  });
+
+  it('still prefers the specific "powdered sugar" over the shared "sugar" alias', () => {
+    expect(linked('add the powdered sugar', earlGrey)).toEqual([['powdered sugar', '2 cup']]);
+  });
+
+  it('matches "butter" for both unsalted butters', () => {
+    const html = render('beat the butter', earlGrey);
+    expect(html).toContain('1 cup');
+    expect(html).toContain('3/4 cup');
+  });
+});
+
+describe('number agreement & boundaries', () => {
+  it('matches a leading prep adjective via head noun (medium apples → apples)', () => {
     expect(linked('peel the apples', appleBread)).toEqual([['apples', '2']]);
   });
 
@@ -118,12 +181,6 @@ describe('linkIngredientsInHtml — matching', () => {
     expect(linked('use salted butter', salt)).toEqual([]);
   });
 
-  it('renders an ambiguous name as rows with group labels', () => {
-    const html = linkIngredientsInHtml('stir in the oat milk', buildIngredientIndex(appleBread), { n: 0 });
-    expect(html).toContain('½ cup <span class="ing-pop-group">· Bread layer</span>');
-    expect(html).toContain('2 tbsp <span class="ing-pop-group">· Icing</span>');
-  });
-
   it('wraps every occurrence with a unique id', () => {
     const html = linkIngredientsInHtml('flour, then more flour', buildIngredientIndex(cookies), { n: 0 });
     expect(html).toContain('id="ing-pop-0"');
@@ -131,7 +188,28 @@ describe('linkIngredientsInHtml — matching', () => {
   });
 });
 
-describe('linkIngredientsInHtml — HTML safety', () => {
+describe('grams rendering', () => {
+  // Stub gramsOf: grams only for cup measurements, to mirror the real convertible/not split.
+  const gramsOf = (item: { qty?: string; unit?: string }) =>
+    item.unit === 'cup' ? '227 g' : null;
+
+  it('bakes both US and grams into a convertible amount, marked convertible', () => {
+    const idx = buildIngredientIndex(cookies, gramsOf);
+    const html = linkIngredientsInHtml('mix the flour', idx, { n: 0 });
+    expect(html).toContain('<span class="ing-amt ing-conv">');
+    expect(html).toContain('<span class="ing-us">1 ½ cup</span>');
+    expect(html).toContain('<span class="ing-grams">227 g</span>');
+  });
+
+  it('omits grams (and the convertible flag) for a count-only amount', () => {
+    const idx = buildIngredientIndex(cookies, gramsOf);
+    const html = linkIngredientsInHtml('add the egg', idx, { n: 0 });
+    expect(html).toContain('<span class="ing-amt">'); // not ing-conv
+    expect(html).not.toContain('ing-grams');
+  });
+});
+
+describe('HTML safety', () => {
   const idx = () => buildIngredientIndex(cookies);
 
   it('leaves markdown tags intact and still matches text inside them', () => {

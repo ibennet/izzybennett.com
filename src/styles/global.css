@@ -36,6 +36,7 @@ body {
 
 .ing-ref-btn {
   font: inherit;
+  font-weight: 600; /* all matched ingredients read bold in the steps */
   color: inherit;
   background: none;
   border: none;
@@ -81,6 +82,20 @@ body {
 /* One row per group when an ingredient is measured in more than one place. */
 .ing-pop-row {
   display: block;
+}
+
+/* US ↔ grams inside the popover, driven by the same toggle as the ingredient list (which
+   sets data-units on <html>). Grams text is hidden until grams mode; in grams mode the US
+   text hides only on convertible amounts, so count/unknown items keep showing their US text.
+   Before the toggle script runs, no data-units is set → the default US view shows. */
+.ing-grams {
+  display: none;
+}
+:root[data-units='grams'] .ing-conv .ing-us {
+  display: none;
+}
+:root[data-units='grams'] .ing-conv .ing-grams {
+  display: inline;
 }
 
 .ing-pop-group {
