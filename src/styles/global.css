@@ -85,16 +85,17 @@ body {
 }
 
 /* US ↔ grams inside the popover, driven by the same toggle as the ingredient list (which
-   sets data-units on <html>). Grams text is hidden until grams mode; in grams mode the US
-   text hides only on convertible amounts, so count/unknown items keep showing their US text.
-   Before the toggle script runs, no data-units is set → the default US view shows. */
-.ing-grams {
+   sets data-units on <html>). Scoped to `.ing-pop` so it never touches the ingredient
+   list, which has its own (scoped) us/grams rules. Grams text is hidden until grams mode;
+   in grams mode the US text hides only on convertible amounts, so count/unknown items keep
+   showing US. Before the toggle script runs, no data-units is set → the default US view. */
+.ing-pop .ing-grams {
   display: none;
 }
-:root[data-units='grams'] .ing-conv .ing-us {
+:root[data-units='grams'] .ing-pop .ing-conv .ing-us {
   display: none;
 }
-:root[data-units='grams'] .ing-conv .ing-grams {
+:root[data-units='grams'] .ing-pop .ing-conv .ing-grams {
   display: inline;
 }
 
