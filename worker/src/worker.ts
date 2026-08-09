@@ -9,11 +9,13 @@
  *                        then 302 back to the site with the session id in the URL fragment.
  *   POST   /api/recipe → create/update a recipe file (auth: `Authorization: Bearer <session>`)
  *   DELETE /api/recipe → delete a recipe file
+ *   POST   /api/menu   → overwrite the cafe menu file (auth: `Authorization: Bearer <session>`)
  *   POST   /logout     → destroy the session
  *
  * The browser only ever holds the opaque session id. The GitHub token lives in KV and is
  * injected server-side here, and every proxied call is hard-restricted to RECIPE_DIR/<slug>.md
- * on OWNER/REPO@BRANCH — so a leaked session can only ever touch recipe files.
+ * or the single fixed MENU_PATH on OWNER/REPO@BRANCH — so a leaked session can only ever touch
+ * those files.
  */
 
 export interface Env {
@@ -41,9 +43,14 @@ const GH_OAUTH = 'https://github.com/login/oauth';
 const UA = 'izzy-recipe-worker';
 const SLUG_RE = /^[a-z0-9-]+$/;
 
+// The one fixed file the /api/menu route may write — the cafe menu, single source of truth for
+// the order form, the /izzys-cafe.json feed, and the dizzyos LED sign. Hard-coded (not derived
+// from client input) so a menu save can never reach any other path.
+const MENU_PATH = 'src/content/pages/izzys-cafe.md';
+
 // Pages sign-in may return to. An allowlist (not raw reflection of `return_to`) keeps the
 // post-OAuth redirect from becoming an open redirect. First entry is the default fallback.
-const RETURN_PATHS = ['/upload', '/recipes/', '/orders/'];
+const RETURN_PATHS = ['/upload', '/recipes/', '/orders/', '/update-menu'];
 const DEFAULT_RETURN = RETURN_PATHS[0];
 const safeReturn = (path: string | null): string =>
   path && RETURN_PATHS.includes(path) ? path : DEFAULT_RETURN;
@@ -87,6 +94,8 @@ export default {
           return await withSession(request, env, (_id, s) => putRecipe(request, env, s));
         case 'DELETE /api/recipe':
           return await withSession(request, env, (_id, s) => deleteRecipe(request, env, s));
+        case 'POST /api/menu':
+          return await withSession(request, env, (_id, s) => putMenu(request, env, s));
         case 'POST /logout':
           return await withSession(request, env, (id) => logout(env, id));
         case 'GET /api/me':
@@ -433,6 +442,38 @@ async function deleteRecipe(request: Request, env: Env, session: Session): Promi
     sha: existing.sha,
     branch: env.BRANCH,
   }, 'delete');
+  return json(env, 200, { ok: true });
+}
+
+// ---- Menu proxy (overwrite the single menu file) --------------------------
+
+// Overwrite the cafe menu markdown. Unlike recipes there's no slug — the target is the fixed
+// MENU_PATH — and it's always an overwrite (the file already exists), so we fetch its sha first.
+// A cheap structural guard rejects payloads that don't look like a menu, so a malformed request
+// can't blank out the file the order form / feed / LED sign all depend on.
+async function putMenu(request: Request, env: Env, session: Session): Promise<Response> {
+  let body: { markdown?: string; message?: string };
+  try {
+    body = (await request.json()) as { markdown?: string; message?: string };
+  } catch {
+    return json(env, 400, { error: 'Invalid JSON body.' });
+  }
+  const markdown = typeof body.markdown === 'string' ? body.markdown : '';
+  // Cheap structural guard so a malformed payload can't blank the file. Tolerant of heading level
+  // and case to match the site parser's wrapper detection (src/lib/cafe-menu.ts).
+  if (!/^#{2,6}\s+menu\s*$/im.test(markdown)) {
+    return json(env, 400, { error: 'Menu content looks malformed (missing a "## Menu" heading).' });
+  }
+
+  const existing = await getExisting(env, session.token, MENU_PATH);
+  const payload: Record<string, unknown> = {
+    message: body.message || 'Update cafe menu',
+    content: b64(markdown),
+    branch: env.BRANCH,
+  };
+  if (existing) payload.sha = existing.sha;
+
+  await commit(env, session.token, 'PUT', MENU_PATH, payload, 'commit');
   return json(env, 200, { ok: true });
 }
 
