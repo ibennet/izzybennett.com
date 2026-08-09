@@ -11,9 +11,10 @@ title: "Izzy's Cafe"
 - Whole/Oat
 
 #### Syrups
+- Apple Cinnamon
+- Melon
 - Cardamom
-- Earl Gray
 
 #### Food
-- Cardamom cookie
-- Ricotta toast
+- Earl Grey Cake
+- ???
