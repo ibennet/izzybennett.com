@@ -5,10 +5,12 @@ title: "Izzy's Cafe"
 ## Menu
 
 #### Drinks
-- Coffee/Matcha
+- Coffee
+- Matcha
 
 #### Milks
-- Whole/Oat
+- Whole
+- Oat
 
 #### Syrups
 - Apple Cinnamon
