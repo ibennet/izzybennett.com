@@ -8,8 +8,11 @@ import { getEntry } from 'astro:content';
 import { parseMenu, sectionItems } from '../lib/cafe-menu';
 
 // Base URL of the Pi order server (reached in prod via the Cloudflare Tunnel). Injected at build
-// time; falls back to the local uvicorn port so `astro dev` works out of the box.
-const ORDER_API = import.meta.env.PUBLIC_ORDER_API ?? 'http://localhost:8000';
+// time. `||` (not `??`) so an unset GitHub Actions var — which arrives as an empty string — falls
+// back too; the local uvicorn port is used only in dev so `astro dev` works out of the box, while a
+// misconfigured prod build yields an empty base (fetchKitchenOpen short-circuits) rather than
+// polling same-origin /status.
+const ORDER_API = import.meta.env.PUBLIC_ORDER_API || (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 const page = await getEntry('pages', 'izzys-cafe');
 const sections = parseMenu(page?.body ?? '');

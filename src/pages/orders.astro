@@ -4,10 +4,13 @@
 // the link can view/advance (by design). Orders are placed at /order.
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-const ORDER_API = import.meta.env.PUBLIC_ORDER_API ?? 'http://localhost:8000';
+// `||` (not `??`) so an unset GitHub Actions var — which arrives as an empty string, not undefined —
+// falls back too; and the localhost default only applies in dev, so a misconfigured prod build yields
+// an empty base the client can treat explicitly as "offline" rather than polling same-origin /status.
+const ORDER_API = import.meta.env.PUBLIC_ORDER_API || (import.meta.env.DEV ? 'http://localhost:8000' : '');
 // The OAuth Worker (same one /upload uses) — opening/closing the kitchen requires a GitHub sign-in,
 // verified server-side by the Pi against this Worker.
-const RECIPE_API = import.meta.env.PUBLIC_RECIPE_API ?? 'http://localhost:8787';
+const RECIPE_API = import.meta.env.PUBLIC_RECIPE_API || (import.meta.env.DEV ? 'http://localhost:8787' : '');
 
 const columns = [
   { status: 'new', label: 'New', accent: 'border-accent-500' },
@@ -58,6 +61,10 @@ const colHeadCls = 'text-xs font-semibold uppercase tracking-wide text-neutral-5
     const ORDER_API = toggle.dataset.orderApi;
     const RECIPE_API = toggle.dataset.recipeApi;
     let kitchenOpen = true;
+    // Flips true the first time we learn the real open/closed state from the server. Until then a
+    // failed poll means "never reached the server" (show offline); after it, a transient failure is
+    // just a blip and we keep the last-known label.
+    let hasResolved = false;
     // Disabled (showing "…") until the first status poll tells us the real open/closed state, so a
     // click in that window can't toggle based on the stale default. renderKitchen() enables it.
     toggle.disabled = true;
@@ -78,6 +85,16 @@ const colHeadCls = 'text-xs font-semibold uppercase tracking-wide text-neutral-5
         (open
           ? 'border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40'
           : 'border-green-400 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/40');
+    }
+
+    // Order server unreachable or unconfigured: show a clearly-disabled "offline" control instead of
+    // the mysterious "…" placeholder, so the button never looks like it's simply missing.
+    function renderKitchenUnavailable() {
+      toggle.disabled = true;
+      toggle.textContent = 'Kitchen offline';
+      toggle.className =
+        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ' +
+        'border-neutral-300 text-neutral-400 dark:border-neutral-700 dark:text-neutral-500';
     }
 
     toggle.addEventListener('click', async () => {
@@ -191,7 +208,8 @@ const colHeadCls = 'text-xs font-semibold uppercase tracking-wide text-neutral-5
         fetchKitchenOpen(ORDER_API),
         fetch(`${ORDER_API}/orders`, { headers: { Accept: 'application/json' } }).catch(() => null),
       ]);
-      if (open !== null) renderKitchen(open);
+      if (open !== null) { renderKitchen(open); hasResolved = true; }
+      else if (!hasResolved) renderKitchenUnavailable(); // never reached the server — show offline, not "…"
       if (ordersRes && ordersRes.ok) {
         render(await ordersRes.json());
         meta.textContent = 'live';
@@ -210,8 +228,16 @@ const colHeadCls = 'text-xs font-semibold uppercase tracking-wide text-neutral-5
       await refresh();
     });
 
-    // Poll only while the tab is visible — a kitchen screen left open shouldn't hammer the Pi
-    // when it's in the background.
-    pollWhileVisible(refresh, POLL_MS);
+    if (!ORDER_API) {
+      // No order server configured for this build (PUBLIC_ORDER_API unset) — there's nothing to poll.
+      // Show the offline toggle and a clear board note instead of hammering same-origin 404s.
+      renderKitchenUnavailable();
+      meta.textContent = 'not configured';
+      meta.className = 'text-sm text-neutral-400';
+    } else {
+      // Poll only while the tab is visible — a kitchen screen left open shouldn't hammer the Pi
+      // when it's in the background.
+      pollWhileVisible(refresh, POLL_MS);
+    }
   </script>
 </BaseLayout>
