@@ -1,0 +1,12 @@
+# Caddyfile for the public VPS that fronts the Pi.
+#
+# Caddy terminates Let's Encrypt TLS for orders.izzybennett.com and reverse-proxies to
+# the Pi over the private Tailscale link. Replace <PI_TS_IP> with the Pi's Tailscale IP
+# (100.x.y.z — get it on the Pi with `tailscale ip -4`). vps-setup.sh renders this file
+# for you from the PI_TS_IP argument; this copy is here to review standalone.
+#
+# The cert is auto-provisioned once the `orders` A record resolves to this VPS.
+
+orders.izzybennett.com {
+	reverse_proxy <PI_TS_IP>:8000
+}
