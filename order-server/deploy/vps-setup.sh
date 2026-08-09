@@ -13,8 +13,14 @@
 # Idempotent: safe to re-run to refresh the Caddyfile or re-open the ports.
 #
 # Usage:
-#   sudo ./vps-setup.sh <PI_TS_IP>
+#   sudo ./vps-setup.sh <PI_TS_IP>                 # Oracle (default): opens on-box firewall
+#   sudo ./vps-setup.sh --skip-firewall <PI_TS_IP> # GCP: skip iptables (VPC rule handles it)
 #   sudo PI_TS_IP=100.x.y.z ./vps-setup.sh
+#   sudo SKIP_FIREWALL=1 PI_TS_IP=100.x.y.z ./vps-setup.sh
+#
+# On GCP the Ubuntu image has NO restrictive default iptables — ingress is controlled by
+# a VPC firewall rule instead (see deploy/gcp.md), so pass --skip-firewall there. The
+# Tailscale + Caddy + Caddyfile steps are identical on both clouds.
 #
 set -euo pipefail
 
@@ -22,6 +28,7 @@ set -euo pipefail
 SITE_HOST="${SITE_HOST:-orders.izzybennett.com}"
 PI_PORT="${PI_PORT:-8000}"
 CADDYFILE="/etc/caddy/Caddyfile"
+SKIP_FIREWALL="${SKIP_FIREWALL:-0}"
 
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
@@ -31,8 +38,23 @@ if [[ $EUID -ne 0 ]]; then
 	exit 1
 fi
 
-# --- 0. require the Pi's Tailscale IP ---------------------------------------------
-PI_TS_IP="${1:-${PI_TS_IP:-}}"
+# --- 0. parse args + require the Pi's Tailscale IP --------------------------------
+# Accept --skip-firewall (in any position) plus one positional PI_TS_IP.
+POSITIONAL=""
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--skip-firewall) SKIP_FIREWALL=1; shift ;;
+		-h|--help)
+			grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'
+			exit 0 ;;
+		-*)
+			echo "Unknown flag: $1" >&2; exit 1 ;;
+		*)
+			POSITIONAL="$1"; shift ;;
+	esac
+done
+
+PI_TS_IP="${POSITIONAL:-${PI_TS_IP:-}}"
 if [[ -z "$PI_TS_IP" ]]; then
 	echo "ERROR: the Pi's Tailscale IP is required." >&2
 	echo "Get it on the Pi with 'tailscale ip -4', then:" >&2
@@ -45,8 +67,16 @@ if [[ ! "$PI_TS_IP" =~ ^100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
 	warn "PI_TS_IP='$PI_TS_IP' doesn't look like a Tailscale IPv4 (expected 100.x.y.z). Continuing anyway."
 fi
 say "Fronting Pi at ${PI_TS_IP}:${PI_PORT} as https://${SITE_HOST}"
+[[ "$SKIP_FIREWALL" == "1" ]] && say "--skip-firewall set: skipping the on-box iptables step (GCP path)"
 
 export DEBIAN_FRONTEND=noninteractive
+
+# --- 1 + 2. open + persist TCP 80/443 on the box (Oracle only) --------------------
+# Skipped on GCP (--skip-firewall): GCP's Ubuntu image has no restrictive default
+# iptables — ingress is a VPC firewall rule created with gcloud (see deploy/gcp.md).
+if [[ "$SKIP_FIREWALL" == "1" ]]; then
+	say "Skipping on-box firewall (open tcp:80,443 via a GCP VPC firewall rule instead)"
+else
 
 # --- 1. open TCP 80 + 443 (Oracle firewall gotcha) --------------------------------
 # Oracle's Ubuntu image ships an INPUT chain that ends with a catch-all REJECT rule.
@@ -93,6 +123,8 @@ if ! command -v netfilter-persistent >/dev/null 2>&1; then
 fi
 netfilter-persistent save
 echo "  Saved (survives reboot)."
+
+fi  # end Oracle on-box firewall block
 
 # --- 3. Tailscale -----------------------------------------------------------------
 say "Installing Tailscale"
@@ -156,11 +188,17 @@ echo "  Caddy restarted."
 
 # --- done -------------------------------------------------------------------------
 say "VPS setup complete"
+if [[ "$SKIP_FIREWALL" == "1" ]]; then
+	FIREWALL_TODO="1. GCP: make sure a VPC firewall rule allows tcp:80,443 from 0.0.0.0/0 to
+     this VM's network tag (see deploy/gcp.md). The script did NOT touch iptables."
+else
+	FIREWALL_TODO="1. Oracle console: add ingress rules for TCP 80 + 443 to this instance's VCN
+     Security List (or NSG). The script only opened the on-box firewall."
+fi
 cat <<EOF
 
 Still to do by hand:
-  1. Oracle console: add ingress rules for TCP 80 + 443 to this instance's VCN
-     Security List (or NSG). The script only opened the on-box firewall.
+  ${FIREWALL_TODO}
   2. If you haven't: 'sudo tailscale up' on THIS VPS (and on the Pi) so Caddy can
      reach ${PI_TS_IP}:${PI_PORT}.
   3. Squarespace DNS: add an A record  host 'orders'  ->  this VPS's public IPv4
