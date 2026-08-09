@@ -10,6 +10,11 @@ export interface MenuSection {
   items: string[];
 }
 
+// The canonical menu sections, in order. The order form assigns per-section meaning by these exact
+// names (Drinks → drink, Milks → milk, Syrups → syrups, Food is menu-only), so the menu editor
+// (`/update-menu`) locks the list here rather than letting section names be edited freely.
+export const MENU_SECTIONS = ['Drinks', 'Milks', 'Syrups', 'Food'] as const;
+
 export function parseMenu(body: string): MenuSection[] {
   const sections: MenuSection[] = [];
   let current: MenuSection | null = null;
