@@ -1,13 +1,15 @@
 """Izzy's Cafe order server — runs on the Raspberry Pi.
 
 A tiny FastAPI + SQLite app that backs izzybennett.com/order (place an order) and
-izzybennett.com/orders (the kitchen queue). The static site reaches it over a
-Cloudflare Tunnel at https://orders.izzybennett.com, so CORS is locked to the site
-origin. No auth: anyone with the link can order or watch the board (by design).
+izzybennett.com/orders (the kitchen queue). The static site reaches it at
+https://orders.izzybennett.com, fronted by a public VPS running Caddy (Let's Encrypt
+TLS) that reverse-proxies to this Pi over a private Tailscale link, so CORS is locked
+to the site origin. No auth: anyone with the link can order or watch the board (by design).
 
-Run it:
+Run it (bind the Tailscale interface so the VPS can reach it; 0.0.0.0 also works since
+Tailscale + home NAT keep 8000 off the public internet):
     python -m venv .venv && .venv/bin/pip install -r requirements.txt
-    .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+    .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 
 The SQLite file lives next to this module and is created on first import.
 """
