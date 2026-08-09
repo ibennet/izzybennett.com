@@ -99,8 +99,13 @@ def verify_session(authorization: str | None) -> bool:
     closed (returns False) if the header is missing or the Worker is unreachable."""
     if not authorization or not authorization.startswith("Bearer "):
         return False
+    # Send an explicit User-Agent: the Worker sits behind Cloudflare, whose bot protection 403s the
+    # default "Python-urllib/x.y" UA before the request ever reaches the Worker — which would make
+    # this fail closed and the kitchen toggle never work. Any non-bot UA gets through.
     req = urllib.request.Request(
-        f"{RECIPE_API}/api/me", headers={"Authorization": authorization}, method="GET"
+        f"{RECIPE_API}/api/me",
+        headers={"Authorization": authorization, "User-Agent": "izzy-orders/1.0"},
+        method="GET",
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as res:
