@@ -19,4 +19,4 @@ title: "Izzy's Cafe"
 
 #### Food
 - Earl Grey Cake
-- ???
+- Deviled Eggs
