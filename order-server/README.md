@@ -80,47 +80,60 @@ sudo systemctl enable --now izzy-orders
 curl localhost:8000/health   # should return {"ok":true}
 ```
 
-### 2. Expose it with a public VPS + Caddy
+### 2. Expose it with a public VM + Caddy
 
-DNS for `izzybennett.com` stays on Google/Squarespace, so instead of a Cloudflare Tunnel (which
-would need the whole zone on Cloudflare) a small free VPS acts as the public front door: Caddy
-terminates Let's Encrypt TLS and reverse-proxies to the Pi over a private Tailscale link.
+DNS for `izzybennett.com` stays on Squarespace, so instead of a Cloudflare Tunnel (which would need
+the whole zone on Cloudflare) a small always-on VM is the public front door: Caddy terminates
+Let's Encrypt TLS and reverse-proxies to the Pi over a private Tailscale link. The deployment uses a
+Google Cloud `e2-micro` (free-tier compute; the only real cost is ~$3.65/mo for its static IP), but
+any Ubuntu VM with a public IP works the same way.
 
-**a. Provision a free VPS.** e.g. an Oracle Cloud Always Free instance (Ubuntu). Note its public
-IPv4 (and IPv6 if assigned). Open TCP **80** and **443** in *both* the cloud security list *and* the
-instance firewall (Oracle blocks them by default in both places).
+**a. Create the VM.** GCP Compute Engine → `e2-micro`, **Ubuntu 24.04 LTS**, in a free-tier region
+(`us-west1`/`us-central1`/`us-east1`), 30 GB **Standard** disk. Tick **Allow HTTP** + **Allow HTTPS
+traffic**, and reserve a **static external IP** so the DNS record stays valid across reboots. Note
+the external IP.
 
-**b. Link the Pi and VPS with Tailscale** (free). Install it on both, `sudo tailscale up` on each,
-then grab the Pi's Tailscale IP:
+**b. Link the Pi and VM with Tailscale** (free). Install it on both, `sudo tailscale up` on each with
+the *same* account, then grab the Pi's Tailscale IP:
 
 ```sh
 tailscale ip -4   # on the Pi → 100.x.y.z
 ```
 
-Confirm the VPS can reach the server (after the Pi service from step 1 is running):
+**c. Bind the Pi server so the VM can reach it.** The service binds loopback (`127.0.0.1`) by
+default. On an existing systemd install, add a drop-in rather than editing the base unit:
 
 ```sh
-curl http://<pi-tailscale-ip>:8000/health   # from the VPS → {"ok":true}
+sudo mkdir -p /etc/systemd/system/izzy-orders.service.d
+sudo tee /etc/systemd/system/izzy-orders.service.d/override.conf >/dev/null <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/opt/izzy-orders/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart izzy-orders
 ```
 
-**c. Run Caddy on the VPS.** `/etc/caddy/Caddyfile`:
+Confirm the tunnel from the **VM**: `curl http://<pi-tailscale-ip>:8000/health` → `{"ok":true}`.
+(`0.0.0.0` also exposes the server on the home LAN, which is harmless behind home NAT; bind the Pi's
+Tailscale IP instead if you want to lock it to the tailnet.)
+
+**d. Run Caddy on the VM.** Install Caddy (official apt repo), then `/etc/caddy/Caddyfile`:
 
 ```
 orders.izzybennett.com {
-    reverse_proxy http://<pi-tailscale-ip>:8000
+    reverse_proxy <pi-tailscale-ip>:8000
 }
 ```
 
 ```sh
-sudo systemctl enable --now caddy
+sudo systemctl restart caddy
 ```
 
-Caddy auto-provisions the cert once the DNS record below resolves to the VPS.
+Caddy auto-provisions the cert once the DNS record below resolves to the VM.
 
-**d. Add the DNS record (Squarespace panel).** In the Squarespace domains dashboard for
+**e. Add the DNS record (Squarespace panel).** In the Squarespace domains dashboard for
 `izzybennett.com` → **DNS Settings → Custom Records**, add an **A** record: host `orders`, value =
-the VPS public IPv4 (add a matching **AAAA** record if the VPS has IPv6). Leave the apex, `www`, and
-Mailgun MX/SPF records untouched.
+the VM's static IP. Leave the apex, `www`, and Mailgun MX/SPF records untouched.
 
 ```sh
 curl https://orders.izzybennett.com/health   # after propagation → {"ok":true}, valid cert
