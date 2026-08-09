@@ -5,18 +5,15 @@ title: "Izzy's Cafe"
 ## Menu
 
 #### Drinks
-- Coffee
-- Matcha
+- Coffee/Matcha
 
 #### Milks
-- Whole
-- Oat
+- Whole/Oat
 
 #### Syrups
-- Cinnamon Apple
-- Melon
 - Cardamom
+- Earl Gray
 
 #### Food
-- Earl Grey Cake
-- Mystery??
+- Cardamom cookie
+- Ricotta toast
