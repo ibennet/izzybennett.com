@@ -5,6 +5,9 @@
 // Fetch whether the kitchen is open. Returns null if unreachable, so callers can leave the UI as-is
 // for that tick rather than flipping state on a transient network blip.
 export async function fetchKitchenOpen(apiBase: string): Promise<boolean | null> {
+  // No base URL configured (e.g. PUBLIC_ORDER_API unset in prod) — don't fire a bogus same-origin
+  // GET /status; just report "unknown" so callers show an offline state instead of 404-spamming.
+  if (!apiBase) return null;
   try {
     const res = await fetch(`${apiBase}/status`, { headers: { Accept: 'application/json' } });
     if (res.ok) return (await res.json()).open;
