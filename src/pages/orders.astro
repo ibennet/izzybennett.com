@@ -1,0 +1,217 @@
+---
+// Kitchen display for the home cafe. Polls the Pi order server and shows a live New → Making → Done
+// board; tapping a card advances it. Meant to live on a screen in the kitchen. No auth — anyone with
+// the link can view/advance (by design). Orders are placed at /order.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const ORDER_API = import.meta.env.PUBLIC_ORDER_API ?? 'http://localhost:8000';
+// The OAuth Worker (same one /upload uses) — opening/closing the kitchen requires a GitHub sign-in,
+// verified server-side by the Pi against this Worker.
+const RECIPE_API = import.meta.env.PUBLIC_RECIPE_API ?? 'http://localhost:8787';
+
+const columns = [
+  { status: 'new', label: 'New', accent: 'border-accent-500' },
+  { status: 'making', label: 'Making', accent: 'border-amber-500' },
+  { status: 'done', label: 'Done', accent: 'border-green-500' },
+];
+const colHeadCls = 'text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
+---
+
+<BaseLayout title="Orders" description="Live kitchen queue for Izzy's home cafe.">
+  <div class="flex items-center justify-between gap-3">
+    <h1 class="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Kitchen 🧑‍🍳</h1>
+    <div class="flex items-center gap-3">
+      <a href="/order/" class="shrink-0 text-sm text-accent-600 hover:underline dark:text-accent-100">← Order</a>
+      <span id="orders-meta" class="text-sm text-neutral-400"></span>
+      <button type="button" id="kitchen-toggle" data-order-api={ORDER_API} data-recipe-api={RECIPE_API}
+        class="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50">
+        …
+      </button>
+    </div>
+  </div>
+  <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-500">Tap a card to move it along. Auto-refreshes.</p>
+
+  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    {columns.map((col) => (
+      <section class:list={['rounded-xl border-t-4 bg-neutral-50 p-3 dark:bg-neutral-900/40', col.accent]}>
+        <div class="flex items-center justify-between">
+          <h2 class={colHeadCls}>{col.label} <span data-count={col.status} class="ml-1 text-neutral-400">0</span></h2>
+          {col.status === 'done' && (
+            <button type="button" id="clear-done" class="text-xs font-medium text-neutral-500 hover:text-red-500">Clear</button>
+          )}
+        </div>
+        <div data-column={col.status} class="mt-3 space-y-2"></div>
+      </section>
+    ))}
+  </div>
+
+  <script>
+    import { currentSession, clearSession, ingestSessionFromHash } from '../scripts/recipe-session';
+    import { fetchKitchenOpen, pollWhileVisible } from '../scripts/order-status';
+
+    const NEXT = { new: 'making', making: 'done' };
+    const POLL_MS = 3500;
+    const meta = document.getElementById('orders-meta');
+    const toggle = document.getElementById('kitchen-toggle');
+    // Build-time config rides on the button's data attributes (see recipes/index.astro for the pattern),
+    // which lets this stay a module <script> that imports the shared session/status helpers.
+    const ORDER_API = toggle.dataset.orderApi;
+    const RECIPE_API = toggle.dataset.recipeApi;
+    let kitchenOpen = true;
+    // Disabled (showing "…") until the first status poll tells us the real open/closed state, so a
+    // click in that window can't toggle based on the stale default. renderKitchen() enables it.
+    toggle.disabled = true;
+
+    // Opening/closing the kitchen requires GitHub sign-in. The browser only holds the opaque session
+    // id; the Pi verifies it against the Worker. On return from OAuth the Worker redirects to
+    // /orders/#session=<id>, which ingestSessionFromHash() stashes and scrubs.
+    ingestSessionFromHash();
+    const signIn = () => { location.href = `${RECIPE_API}/login?return_to=/orders/`; };
+
+    // Reflect open/closed state onto the toggle button (red "Close" when open, green "Open" when closed).
+    function renderKitchen(open) {
+      kitchenOpen = open;
+      toggle.disabled = false; // real state is known now — clickable
+      toggle.textContent = open ? 'Close kitchen' : 'Open kitchen';
+      toggle.className =
+        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ' +
+        (open
+          ? 'border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40'
+          : 'border-green-400 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/40');
+    }
+
+    toggle.addEventListener('click', async () => {
+      // Gate on GitHub sign-in — no session means kick off OAuth (we come back to /orders/ signed in).
+      if (!currentSession()) { signIn(); return; }
+      toggle.disabled = true;
+      try {
+        const res = await fetch(`${ORDER_API}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentSession()}` },
+          body: JSON.stringify({ open: !kitchenOpen }),
+        });
+        if (res.status === 401) {
+          // Session missing/expired on the server — drop it and restart sign-in.
+          clearSession();
+          signIn();
+          return;
+        }
+        if (res.ok) renderKitchen((await res.json()).open);
+      } catch { /* leave the button as-is; next poll re-syncs */ }
+      finally { toggle.disabled = false; }
+    });
+
+    async function patchStatus(id, status) {
+      const res = await fetch(`${ORDER_API}/orders/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+    }
+
+    // Build one order card. Uses textContent throughout — name/notes are user input and must never
+    // be parsed as markup.
+    function card(order) {
+      const el = document.createElement('article');
+      el.className =
+        'rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900';
+
+      const drink = document.createElement('div');
+      drink.className = 'font-semibold text-neutral-900 dark:text-neutral-100';
+      drink.textContent = order.drink;
+      el.appendChild(drink);
+
+      const bits = [];
+      if (order.milk) bits.push(order.milk);
+      if (order.syrups && order.syrups.length) bits.push(order.syrups.join(', '));
+      if (bits.length) {
+        const sub = document.createElement('div');
+        sub.className = 'mt-0.5 text-sm text-neutral-600 dark:text-neutral-400';
+        sub.textContent = bits.join(' · ');
+        el.appendChild(sub);
+      }
+
+      if (order.name) {
+        const who = document.createElement('div');
+        who.className = 'mt-1 text-sm font-medium text-accent-600 dark:text-accent-100';
+        who.textContent = order.name;
+        el.appendChild(who);
+      }
+
+      if (order.notes) {
+        const notes = document.createElement('div');
+        notes.className = 'mt-1 text-sm italic text-neutral-500 dark:text-neutral-400';
+        notes.textContent = order.notes;
+        el.appendChild(notes);
+      }
+
+      const next = NEXT[order.status];
+      if (next) {
+        el.classList.add('cursor-pointer', 'transition-colors', 'hover:border-accent-400');
+        el.title = `Move to ${next}`;
+        el.addEventListener('click', async () => {
+          el.style.opacity = '0.5';
+          try { await patchStatus(order.id, next); await refresh(); }
+          catch { el.style.opacity = '1'; }
+        });
+      } else {
+        // Done cards can be archived individually.
+        const archive = document.createElement('button');
+        archive.type = 'button';
+        archive.className = 'mt-2 text-xs text-neutral-400 hover:text-red-500';
+        archive.textContent = 'Archive';
+        archive.addEventListener('click', async () => {
+          try { await patchStatus(order.id, 'archived'); await refresh(); } catch { /* keep it visible */ }
+        });
+        el.appendChild(archive);
+      }
+      return el;
+    }
+
+    // Last-rendered orders, so "Clear done" can archive from known state without re-fetching.
+    let lastOrders = [];
+
+    function render(orders) {
+      lastOrders = orders;
+      const byStatus = { new: [], making: [], done: [] };
+      for (const o of orders) if (byStatus[o.status]) byStatus[o.status].push(o);
+      for (const status of Object.keys(byStatus)) {
+        const col = document.querySelector(`[data-column="${status}"]`);
+        const count = document.querySelector(`[data-count="${status}"]`);
+        col.replaceChildren(...byStatus[status].map(card));
+        if (count) count.textContent = String(byStatus[status].length);
+      }
+    }
+
+    async function refresh() {
+      // The status and orders GETs are independent — fetch them together, not one after the other.
+      // (Status also keeps the toggle in sync, so a second kitchen screen reflects a change.)
+      const [open, ordersRes] = await Promise.all([
+        fetchKitchenOpen(ORDER_API),
+        fetch(`${ORDER_API}/orders`, { headers: { Accept: 'application/json' } }).catch(() => null),
+      ]);
+      if (open !== null) renderKitchen(open);
+      if (ordersRes && ordersRes.ok) {
+        render(await ordersRes.json());
+        meta.textContent = 'live';
+        meta.className = 'text-sm text-green-600 dark:text-green-500';
+      } else {
+        meta.textContent = 'offline — retrying';
+        meta.className = 'text-sm text-red-500';
+      }
+    }
+
+    document.getElementById('clear-done').addEventListener('click', async () => {
+      // Archive from the board's known state (no extra fetch), then refresh once.
+      const done = lastOrders.filter((o) => o.status === 'done');
+      if (!done.length) return;
+      await Promise.allSettled(done.map((o) => patchStatus(o.id, 'archived')));
+      await refresh();
+    });
+
+    // Poll only while the tab is visible — a kitchen screen left open shouldn't hammer the Pi
+    // when it's in the background.
+    pollWhileVisible(refresh, POLL_MS);
+  </script>
+</BaseLayout>

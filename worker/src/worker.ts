@@ -43,7 +43,7 @@ const SLUG_RE = /^[a-z0-9-]+$/;
 
 // Pages sign-in may return to. An allowlist (not raw reflection of `return_to`) keeps the
 // post-OAuth redirect from becoming an open redirect. First entry is the default fallback.
-const RETURN_PATHS = ['/upload', '/recipes/'];
+const RETURN_PATHS = ['/upload', '/recipes/', '/orders/'];
 const DEFAULT_RETURN = RETURN_PATHS[0];
 const safeReturn = (path: string | null): string =>
   path && RETURN_PATHS.includes(path) ? path : DEFAULT_RETURN;
@@ -89,6 +89,11 @@ export default {
           return await withSession(request, env, (_id, s) => deleteRecipe(request, env, s));
         case 'POST /logout':
           return await withSession(request, env, (id) => logout(env, id));
+        case 'GET /api/me':
+          // Lightweight session check for other first-party backends (e.g. the Pi order server,
+          // which gates the kitchen open/close toggle on it). A valid session can only belong to
+          // ALLOWED_LOGIN — it's minted nowhere else — so "session valid" == "the allowed user".
+          return await withSession(request, env, async () => json(env, 200, { ok: true }));
         case 'GET /':
           return json(env, 200, { ok: true, service: 'izzy-recipe-api' });
         default:
